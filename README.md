@@ -3,7 +3,13 @@
 A retro pixel-art / CRT world map of the global developer community. Implemented
 from a Claude Design handoff bundle as a real **Vite + React** app.
 
-![green terminal aesthetic](src/styles.css)
+![DEVERSE — vector globe with real country outlines and the developer UI](docs/screenshots/hero.png)
+
+## Screenshots
+
+| Developer profile | Sign in with GitHub |
+| --- | --- |
+| ![Selecting a developer filtered by stack, with the globe recentered and a profile card open](docs/screenshots/profile.png) | ![GitHub-only sign-up modal](docs/screenshots/github-signin.png) |
 
 ## What's here
 
