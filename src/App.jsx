@@ -44,7 +44,7 @@ function strHash(str) {
 /* ---- Sign in with GitHub (mocked OAuth flow) ---- */
 function GitHubAuth() {
   const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("deverse_gh_user") || "null"); } catch (e) { return null; }
+    try { return JSON.parse(localStorage.getItem("deverse_gh_user") || "null"); } catch { return null; }
   });
   const [modal, setModal] = useState(false);
   const [menu, setMenu] = useState(false);

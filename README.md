@@ -31,9 +31,11 @@ from a Claude Design handoff bundle as a real **Vite + React** app.
 
 ```bash
 npm install
-npm run dev      # start the dev server
-npm run build    # production build → dist/
-npm run preview  # serve the production build
+npm run dev          # start the dev server
+npm run build        # production build → dist/
+npm run preview      # serve the production build
+npm run lint         # ESLint
+npm run format       # Prettier (write)
 ```
 
 ## Structure
@@ -45,3 +47,18 @@ npm run preview  # serve the production build
 | `src/Globe.jsx` | Canvas vector-globe engine (projection, pins, interaction) |
 | `src/App.jsx` | UI: top bar, GitHub auth, search, filters, profile panel |
 | `src/styles.css` | Retro pixel-art / CRT visual system |
+
+## Contributing
+
+Contributions are welcome.
+
+1. Fork the repo and create a feature branch.
+2. `npm install`, then make your change.
+3. Make sure `npm run lint` and `npm run build` both pass (CI runs them on every
+   push and PR).
+4. Run `npm run format` to keep the style consistent.
+5. Open a pull request describing the change.
+
+## License
+
+[MIT](LICENSE) © DEVERSE
