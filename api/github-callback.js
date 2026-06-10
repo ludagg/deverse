@@ -7,7 +7,7 @@
  * GITHUB_CLIENT_SECRET environment variables (see .env.example). */
 
 import { db, upsertDeveloper } from "./_db.js";
-import { geocode } from "./_geo.js";
+import { geocode, geocodeIp } from "./_geo.js";
 
 const GH = "https://api.github.com";
 
@@ -80,7 +80,11 @@ export default async function handler(req, res) {
     if (reposRes.ok) repos = await reposRes.json();
 
     const profile = normalize(user, repos);
-    const geo = await geocode(profile.location);
+    // resolve the GitHub free-text location; if there isn't one (or it doesn't
+    // geocode), fall back to the sign-in IP so the developer still gets pinned
+    // and persisted — the map doesn't stay empty for location-less profiles
+    let geo = await geocode(profile.location);
+    if (!geo) geo = await geocodeIp(clientIp(req));
     const dev = toDeveloper(profile, geo);
 
     // persist & share: the signed-in user shows up on everyone's map
@@ -119,6 +123,13 @@ export default async function handler(req, res) {
     res.statusCode = 502;
     return res.end(JSON.stringify({ error: "GitHub request failed." }));
   }
+}
+
+/* The originating client IP, from the proxy headers Vercel sets (the first
+ * entry of x-forwarded-for is the real client), falling back to the socket. */
+function clientIp(req) {
+  const xff = (req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return xff || req.headers["x-real-ip"] || (req.socket && req.socket.remoteAddress) || "";
 }
 
 /* Read and JSON-parse the request body (raw Node stream). */
