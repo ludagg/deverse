@@ -11,6 +11,9 @@
  * scope is enough) — Search has a 30 req/min cap, so this takes a few minutes. */
 
 import process from "node:process";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import D from "../src/data.js";
 import { db, upsertDeveloper, connString } from "../api/_db.js";
 
@@ -107,8 +110,18 @@ async function buildFromGitHub(login, city) {
   };
 }
 
+/* Create the table if it doesn't exist yet, so seeding works from a fresh
+ * database with no manual SQL step (schema.sql is idempotent). */
+async function ensureSchema(sql) {
+  const dir = path.dirname(fileURLToPath(import.meta.url));
+  const ddl = await readFile(path.join(dir, "../db/schema.sql"), "utf8");
+  await sql.unsafe(ddl);
+}
+
 async function main() {
   const sql = db();
+  await ensureSchema(sql);
+  console.log("schema ready");
   const seen = new Set();
   let total = 0;
 
