@@ -433,13 +433,31 @@ const Globe = forwardRef(function Globe(props, ref) {
       return null;
     }
 
+    // active touch/mouse pointers, so two fingers can pinch-zoom on a phone
+    const pointers = new Map();
+    let pinchDist = 0, pinchZoom = 1;
+
     function down(e) {
-      s.dragging = true; s.moved = 0;
-      s.lastX = e.clientX; s.lastY = e.clientY;
-      canvas.classList.add("grabbing");
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+      if (pointers.size === 1) {
+        s.dragging = true; s.moved = 0; s.lastX = e.clientX; s.lastY = e.clientY;
+        canvas.classList.add("grabbing");
+      } else if (pointers.size === 2) {
+        s.dragging = false; s.focusing = false;
+        const [a, b] = [...pointers.values()];
+        pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+        pinchZoom = s.tZoom;
+      }
     }
     function move(e) {
+      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size >= 2) {
+        const [a, b] = [...pointers.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinchDist > 0) s.tZoom = clampZoom((pinchZoom * d) / pinchDist);
+        return;
+      }
       if (s.dragging) {
         const dx = e.clientX - s.lastX, dy = e.clientY - s.lastY;
         s.moved += Math.abs(dx) + Math.abs(dy);
@@ -462,7 +480,9 @@ const Globe = forwardRef(function Globe(props, ref) {
     }
     function up(e) {
       const P = propsRef.current;
-      if (s.dragging && s.moved < 6) {
+      const wasMulti = pointers.size >= 2;
+      pointers.delete(e.pointerId);
+      if (!wasMulti && s.dragging && s.moved < 6) {
         const hit = pick(e.clientX, e.clientY);
         if (hit) P.onSelect(hit.id);
         else {
@@ -472,8 +492,15 @@ const Globe = forwardRef(function Globe(props, ref) {
           else P.onSelect(null);
         }
       }
-      s.dragging = false;
-      canvas.classList.remove("grabbing");
+      if (pointers.size < 2) pinchDist = 0;
+      if (pointers.size === 0) {
+        s.dragging = false; canvas.classList.remove("grabbing");
+      } else {
+        // a finger lifted mid-gesture — resume dragging from one that remains,
+        // and don't let the eventual lift register as a tap
+        const [p] = [...pointers.values()];
+        s.lastX = p.x; s.lastY = p.y; s.dragging = true; s.moved = 999;
+      }
     }
     function leave() { const P = propsRef.current; if (P.hoveredId != null) P.onHover(null); setTip(null); }
     function wheel(e) { e.preventDefault(); s.tZoom = clampZoom(s.tZoom * (e.deltaY > 0 ? 0.9 : 1.1)); }

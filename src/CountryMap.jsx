@@ -182,12 +182,41 @@ export default function CountryMap({ country, developers, meId, onClose, onSelec
       }
       return best;
     };
+    // zoom about a canvas-space point (shared by wheel and two-finger pinch)
+    const applyZoom = (z2, mx, my) => {
+      const v = view.current;
+      const next = Math.max(1, Math.min(60, z2));
+      const ratio = next / v.zoom;
+      v.panX = mx - canvas.width / 2 - (mx - canvas.width / 2 - v.panX) * ratio;
+      v.panY = my - canvas.height / 2 - (my - canvas.height / 2 - v.panY) * ratio;
+      v.zoom = next; draw();
+    };
+
+    const pointers = new Map();
+    let pinchDist = 0, pinchZoom = 1;
+
     const down = (e) => {
-      const v = view.current; v.dragging = true; v.moved = 0; v.lastX = e.clientX; v.lastY = e.clientY;
+      const v = view.current;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+      if (pointers.size === 1) { v.dragging = true; v.moved = 0; v.lastX = e.clientX; v.lastY = e.clientY; }
+      else if (pointers.size === 2) {
+        v.dragging = false;
+        const [a, b] = [...pointers.values()];
+        pinchDist = Math.hypot(a.x - b.x, a.y - b.y); pinchZoom = v.zoom;
+      }
     };
     const move = (e) => {
       const v = view.current;
+      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size >= 2) {
+        const [a, b] = [...pointers.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        const r = canvas.getBoundingClientRect();
+        const mx = ((a.x + b.x) / 2 - r.left) * res, my = ((a.y + b.y) / 2 - r.top) * res;
+        if (pinchDist > 0) applyZoom((pinchZoom * d) / pinchDist, mx, my);
+        return;
+      }
       if (v.dragging) {
         const dx = (e.clientX - v.lastX) * res, dy = (e.clientY - v.lastY) * res;
         v.moved += Math.abs(dx) + Math.abs(dy); v.panX += dx; v.panY += dy;
@@ -203,22 +232,20 @@ export default function CountryMap({ country, developers, meId, onClose, onSelec
     };
     const up = (e) => {
       const v = view.current;
-      if (v.dragging && v.moved < 6) {
+      const wasMulti = pointers.size >= 2;
+      pointers.delete(e.pointerId);
+      if (!wasMulti && v.dragging && v.moved < 6) {
         const [cx, cy] = toCanvas(e); const hit = pick(cx, cy);
         if (hit) onSelect(hit.id);
       }
-      v.dragging = false;
+      if (pointers.size < 2) pinchDist = 0;
+      if (pointers.size === 0) v.dragging = false;
+      else { const [p] = [...pointers.values()]; v.lastX = p.x; v.lastY = p.y; v.dragging = true; v.moved = 999; }
     };
     const wheel = (e) => {
       e.preventDefault();
-      const v = view.current;
       const [cx, cy] = toCanvas(e);
-      const f = e.deltaY > 0 ? 0.88 : 1.14;
-      const z2 = Math.max(1, Math.min(60, v.zoom * f));
-      const ratio = z2 / v.zoom;
-      v.panX = cx - canvas.width / 2 - (cx - canvas.width / 2 - v.panX) * ratio;
-      v.panY = cy - canvas.height / 2 - (cy - canvas.height / 2 - v.panY) * ratio;
-      v.zoom = z2; draw();
+      applyZoom(view.current.zoom * (e.deltaY > 0 ? 0.88 : 1.14), cx, cy);
     };
     canvas.addEventListener("pointerdown", down);
     window.addEventListener("pointermove", move);
