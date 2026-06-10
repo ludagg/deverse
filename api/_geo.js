@@ -2,7 +2,11 @@
  *
  * Sign-in locations are resolved here so the resulting pin is the same for
  * everyone (it's persisted in the DB), not just in one browser. Nominatim's
- * usage policy requires a descriptive User-Agent on server requests. */
+ * usage policy requires a descriptive User-Agent on server requests. Every
+ * outbound call is time-boxed (fetchT) so a slow upstream can't hang the
+ * function. */
+
+import { fetchT } from "./_http.js";
 
 /* True for loopback / RFC-1918 private addresses, which can't be geolocated. */
 function isPrivateIp(ip) {
@@ -25,7 +29,7 @@ function ok(lat, lon) {
 /* freeipapi.com — HTTPS, no key. */
 async function fromFreeIpApi(addr) {
   try {
-    const r = await fetch("https://freeipapi.com/api/json/" + encodeURIComponent(addr), UA);
+    const r = await fetchT("https://freeipapi.com/api/json/" + encodeURIComponent(addr), UA, 4000);
     if (!r.ok) return null;
     const j = await r.json();
     if (!ok(j.latitude, j.longitude)) return null;
@@ -38,7 +42,7 @@ async function fromFreeIpApi(addr) {
 /* ip-api.com — HTTP-only on the free tier, fine for a server-side fallback. */
 async function fromIpApi(addr) {
   try {
-    const r = await fetch("http://ip-api.com/json/" + encodeURIComponent(addr) + "?fields=status,lat,lon,city,country", UA);
+    const r = await fetchT("http://ip-api.com/json/" + encodeURIComponent(addr) + "?fields=status,lat,lon,city,country", UA, 4000);
     if (!r.ok) return null;
     const j = await r.json();
     if (j.status !== "success" || !ok(j.lat, j.lon)) return null;
@@ -63,9 +67,9 @@ export async function geocode(location) {
   if (!q) return null;
   const p = new URLSearchParams({ q, format: "jsonv2", limit: "1", addressdetails: "1" });
   try {
-    const r = await fetch("https://nominatim.openstreetmap.org/search?" + p.toString(), {
-      headers: { "user-agent": "deverse (github map)", accept: "application/json" },
-    });
+    const r = await fetchT("https://nominatim.openstreetmap.org/search?" + p.toString(), {
+      headers: { "user-agent": "devmap (github map; +https://devmap.world)", accept: "application/json" },
+    }, 5000);
     if (!r.ok) return null;
     const arr = await r.json();
     if (!Array.isArray(arr) || !arr[0]) return null;
