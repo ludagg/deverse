@@ -67,9 +67,8 @@ const Globe = forwardRef(function Globe(props, ref) {
     dragging: false, moved: 0, lastX: 0, lastY: 0,
     res: 2, bw: 0, bh: 0,
     pins: [], t: 0,
-    activeCountry: null,           // country centred under a deep zoom
-    regionRings: new Map(),        // country name → admin-1 rings (lazy, CDN)
-    reportedCountry: undefined,    // last name handed up to React (avoids churn)
+    labels: [],                    // drawn country-label boxes, for click-to-open
+    regionRings: new Map(),        // ISO3 → admin-1 sphere rings (lazy, CDN)
   });
   const propsRef = useRef(props);
   propsRef.current = props;
@@ -217,7 +216,6 @@ const Globe = forwardRef(function Globe(props, ref) {
           if (dd < bestD) { bestD = dd; active = c; }
         }
       }
-      s.activeCountry = active ? active.name : null;
       const iso3 = active && active.iso3;
       if (iso3 && !s.regionRings.has(iso3)) {
         s.regionRings.set(iso3, null); // pending — avoids re-fetching every frame
@@ -242,6 +240,7 @@ const Globe = forwardRef(function Globe(props, ref) {
         ctx.textBaseline = "middle";
         ctx.lineJoin = "round";
         const placed = [];
+        const hits = []; // drawn label boxes, for click-to-open-country
         for (const c of COUNTRY_LABELS) {
           const v = lonLatToVec(c.lat, c.lon);
           const { sx, sy, zz } = worldToScreen(v[0], v[1], v[2], s.yaw, s.pitch, cx, cy, R);
@@ -264,6 +263,7 @@ const Globe = forwardRef(function Globe(props, ref) {
           }
           if (clash) continue;
           placed.push(box);
+          hits.push({ x: box.x, y: box.y, w: box.w, h: box.h, country: c });
           const alpha = Math.min(1, (zz - 0.14) / 0.28); // fade in away from the limb
           ctx.lineWidth = Math.max(2, fs * 0.22);
           ctx.strokeStyle = "rgba(3,12,11," + (0.85 * alpha).toFixed(3) + ")";
@@ -273,13 +273,9 @@ const Globe = forwardRef(function Globe(props, ref) {
         }
         ctx.textAlign = "start";
         ctx.textBaseline = "alphabetic";
+        s.labels = hits;
       }
       ctx.restore();
-
-      if (s.activeCountry !== s.reportedCountry) {
-        s.reportedCountry = s.activeCountry;
-        if (P.onCountryFocus) P.onCountryFocus(s.activeCountry);
-      }
 
       // connection arcs from the selected developer (great-circle, lifted off
       // the sphere; drawn outside the clip so the arcs can rise above the limb)
@@ -426,6 +422,17 @@ const Globe = forwardRef(function Globe(props, ref) {
       return { id: best.id, sx: r.left + best.x / s.res, sy: r.top + best.y / s.res };
     }
 
+    // hit-test the drawn country-name labels (canvas px), for click-to-open
+    function pickLabel(clientX, clientY) {
+      const r = canvas.getBoundingClientRect();
+      const bx = (clientX - r.left) * s.res;
+      const by = (clientY - r.top) * s.res;
+      for (const l of s.labels) {
+        if (bx >= l.x && bx <= l.x + l.w && by >= l.y && by <= l.y + l.h) return l.country;
+      }
+      return null;
+    }
+
     function down(e) {
       s.dragging = true; s.moved = 0;
       s.lastX = e.clientX; s.lastY = e.clientY;
@@ -457,7 +464,13 @@ const Globe = forwardRef(function Globe(props, ref) {
       const P = propsRef.current;
       if (s.dragging && s.moved < 6) {
         const hit = pick(e.clientX, e.clientY);
-        P.onSelect(hit ? hit.id : null);
+        if (hit) P.onSelect(hit.id);
+        else {
+          // not a pin — did we click a country name? open its flat map; else deselect
+          const country = pickLabel(e.clientX, e.clientY);
+          if (country && P.onCountryClick) P.onCountryClick(country);
+          else P.onSelect(null);
+        }
       }
       s.dragging = false;
       canvas.classList.remove("grabbing");

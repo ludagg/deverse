@@ -2,6 +2,8 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import D from "./data.js";
 import Globe from "./Globe.jsx";
+import CountryMap from "./CountryMap.jsx";
+import { COUNTRY_LABELS } from "./labels.js";
 import { tallies, peersOf } from "./derive.js";
 import {
   oauthConfigured,
@@ -265,7 +267,6 @@ function readState() {
     activeLangs: new Set(langs),
     activeCountry: p.get("country") || null,
     selectedId: devId,
-    onlineOnly: p.get("online") === "1",
   };
 }
 
@@ -279,10 +280,10 @@ export default function App() {
   const [autoToggle, setAutoToggle] = useState(true);
   const [focusTarget, setFocusTarget] = useState(null);
   const [booted, setBooted] = useState(false);
-  const [viewCountry, setViewCountry] = useState(null); // country the deep zoom is sitting over
+  const [countryView, setCountryView] = useState(null); // {name, iso3, lon, lat} → flat map open
+  const [langQuery, setLangQuery] = useState(""); // typeahead text for the stack filter
   const [railOpen, setRailOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [onlineOnly, setOnlineOnly] = useState(init.onlineOnly);
   // the signed-in real GitHub developer (persisted), overlaid on the fiction
   const [me, setMe] = useState(() => {
     try { return JSON.parse(localStorage.getItem("deverse_me") || "null"); } catch { return null; }
@@ -314,24 +315,18 @@ export default function App() {
     return base.some((d) => d.id === me.id) ? base : [...base, me];
   }, [base, me]);
 
-  const { langCounts, topLangs, countryCounts } = useMemo(() => {
+  const { langCounts, allLangs, countryCounts } = useMemo(() => {
     const t = tallies(developers);
-    return { langCounts: t.langCounts, topLangs: t.topLangs.slice(0, 14), countryCounts: t.countryCounts };
+    return { langCounts: t.langCounts, allLangs: t.topLangs, countryCounts: t.countryCounts };
   }, [developers]);
 
-  // count devs in the deep-zoomed country — loose match, since the atlas name
-  // ("United States of America") rarely equals the geocoded one ("United States")
-  const countryDevCount = useMemo(() => {
-    if (!viewCountry) return 0;
-    const norm = (s) => (s || "").toLowerCase().replace(/[^a-z]/g, "");
-    const b = norm(viewCountry);
-    return developers.filter((d) => {
-      const a = norm(d.country);
-      return a && b && (a === b || a.includes(b) || b.includes(a));
-    }).length;
-  }, [viewCountry, developers]);
+  // languages matching the typeahead (excluding ones already picked), top few
+  const langSuggestions = useMemo(() => {
+    const q = langQuery.trim().toLowerCase();
+    const pool = allLangs.filter((l) => !activeLangs.has(l));
+    return (q ? pool.filter((l) => l.toLowerCase().includes(q)) : pool).slice(0, 8);
+  }, [langQuery, allLangs, activeLangs]);
 
-  const onlineCount = useMemo(() => developers.filter((d) => d.status === "online").length, [developers]);
   const countryCount = useMemo(() => new Set(developers.map((d) => d.country).filter(Boolean)).size, [developers]);
 
   useEffect(() => { const t = setTimeout(() => setBooted(true), 1100); return () => clearTimeout(t); }, []);
@@ -351,10 +346,9 @@ export default function App() {
     if (activeLangs.size) p.set("langs", [...activeLangs].join(","));
     if (activeCountry) p.set("country", activeCountry);
     if (selectedId != null) p.set("dev", String(selectedId));
-    if (onlineOnly) p.set("online", "1");
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? "?" + qs : window.location.pathname);
-  }, [query, activeLangs, activeCountry, selectedId, onlineOnly]);
+  }, [query, activeLangs, activeCountry, selectedId]);
 
   const countries = useMemo(
     () => Object.entries(countryCounts).sort((a, b) => b[1] - a[1]),
@@ -366,10 +360,9 @@ export default function App() {
   const dimSet = useMemo(() => {
     const hasLang = activeLangs.size > 0;
     const q = query.trim().toLowerCase();
-    if (!hasLang && !activeCountry && !q && !onlineOnly) return null;
+    if (!hasLang && !activeCountry && !q) return null;
     const set = new Set();
     for (const d of developers) {
-      if (onlineOnly && d.status !== "online") continue;
       if (hasLang && !d.langs.some((l) => activeLangs.has(l))) continue;
       if (activeCountry && d.country !== activeCountry) continue;
       if (q) {
@@ -379,7 +372,7 @@ export default function App() {
       set.add(d.id);
     }
     return set;
-  }, [activeLangs, activeCountry, query, onlineOnly, developers]);
+  }, [activeLangs, activeCountry, query, developers]);
 
   const matchCount = dimSet ? dimSet.size : developers.length;
 
@@ -392,14 +385,41 @@ export default function App() {
   // sharing a language for real developers) — drives the arcs + highlights
   const linkSet = useMemo(() => peersOf(selected, developers), [selected, developers]);
 
-  const toggleLang = (l) => {
-    setActiveLangs((prev) => { const n = new Set(prev); n.has(l) ? n.delete(l) : n.add(l); return n; });
+  const addLang = (l) => {
+    setActiveLangs((prev) => { const n = new Set(prev); n.add(l); return n; });
+    setLangQuery("");
   };
-  const selectCountry = (c) => {
-    setActiveCountry((cur) => (cur === c ? null : c));
-    const cc = developers.find((x) => x.country === c && x.lat != null);
-    if (cc && activeCountry !== c) { globeRef.current && globeRef.current.focusLatLon(cc.lat, cc.lon); }
+  const removeLang = (l) => {
+    setActiveLangs((prev) => { const n = new Set(prev); n.delete(l); return n; });
+  };
+
+  // map a geocoded country name (e.g. "United States") to its atlas label, so the
+  // by-country list can open the same flat map as clicking the name on the globe
+  const labelFor = useCallback((name) => {
+    const norm = (s) => (s || "").toLowerCase().replace(/[^a-z]/g, "");
+    const b = norm(name);
+    if (!b) return null;
+    return (
+      COUNTRY_LABELS.find((c) => norm(c.name) === b) ||
+      COUNTRY_LABELS.find((c) => { const a = norm(c.name); return a.includes(b) || b.includes(a); }) ||
+      null
+    );
+  }, []);
+
+  const openCountry = useCallback((label) => {
+    if (!label) return;
+    setCountryView(label);
     setRailOpen(false);
+    if (label.lat != null) setFocusTarget({ lat: label.lat, lon: label.lon, k: "c:" + label.name });
+  }, []);
+  const selectCountryRow = (c) => {
+    const label = labelFor(c);
+    if (label) openCountry(label);
+    else {
+      const cc = developers.find((x) => x.country === c && x.lat != null);
+      if (cc) globeRef.current && globeRef.current.focusLatLon(cc.lat, cc.lon);
+      setRailOpen(false);
+    }
   };
 
   const handleSelect = useCallback((id) => {
@@ -410,11 +430,7 @@ export default function App() {
     }
   }, [developers]);
   const handleHover = useCallback((id) => setHoveredId(id), []);
-  const handleCountryFocus = useCallback((name) => setViewCountry(name), []);
-  const exitCountry = useCallback(() => {
-    if (globeRef.current) globeRef.current.reset();
-    setViewCountry(null);
-  }, []);
+  const handleCountryClick = useCallback((label) => openCountry(label), [openCountry]);
 
   // bring the freshly-authed real user into focus
   const handleAuthed = useCallback((dev) => {
@@ -442,7 +458,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape") { setRailOpen(false); if (selectedId != null) handleSelect(null); return; }
+      if (e.key === "Escape") { setRailOpen(false); if (countryView) { setCountryView(null); return; } if (selectedId != null) handleSelect(null); return; }
       const t = e.target;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); cycleSelection(1); }
@@ -450,7 +466,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedId, cycleSelection, handleSelect]);
+  }, [selectedId, cycleSelection, handleSelect, countryView]);
 
   const share = async () => {
     try {
@@ -484,16 +500,19 @@ export default function App() {
         linkSet={linkSet}
         focusTarget={focusTarget}
         autoToggle={autoToggle}
-        onCountryFocus={handleCountryFocus}
+        onCountryClick={handleCountryClick}
       />
 
-      {/* deep-zoom country banner — appears when the globe dives into a country */}
-      {viewCountry && (
-        <div className="country-banner panel">
-          <button className="cb-back" onClick={exitCountry} aria-label="Back to the globe">←</button>
-          <span className="cb-name">{viewCountry}</span>
-          <span className="cb-sub">{countryDevCount} devs · regions</span>
-        </div>
+      {/* flat country map — opens when a country name is clicked */}
+      {countryView && (
+        <CountryMap
+          country={countryView}
+          developers={developers}
+          meId={me ? me.id : null}
+          selectedId={selectedId}
+          onSelect={handleSelect}
+          onClose={() => setCountryView(null)}
+        />
       )}
 
       {/* top bar */}
@@ -506,15 +525,6 @@ export default function App() {
           </div>
         </div>
         <div className="topbar-right">
-          <button
-            className={"online-toggle panel" + (onlineOnly ? " on" : "")}
-            aria-pressed={onlineOnly}
-            title="Show only developers who are online now"
-            onClick={() => setOnlineOnly((v) => !v)}
-          >
-            <span className="dot-live" />
-            <span><b>{onlineCount}</b> online</span>
-          </button>
           <div className="status-pill panel">
             <span><b>{developers.length}</b> devs</span>
             <span className="sep" />
@@ -555,12 +565,31 @@ export default function App() {
               <button className="panel-title" style={{ color: "var(--teal)" }} onClick={() => setActiveLangs(new Set())}>clear</button>
             )}
           </div>
-          <div className="chips scroll">
-            {topLangs.map((l) => (
-              <button key={l} className={"chip" + (activeLangs.has(l) ? " on" : "")} onClick={() => toggleLang(l)}>
-                {l}<span className="n">{langCounts[l]}</span>
-              </button>
-            ))}
+          {activeLangs.size > 0 && (
+            <div className="chips active-langs">
+              {[...activeLangs].map((l) => (
+                <button key={l} className="chip on" onClick={() => removeLang(l)} title={"Remove " + l}>
+                  {l}<span className="x">×</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="lang-search">
+            <input
+              value={langQuery}
+              placeholder="type a language…"
+              onChange={(e) => setLangQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && langSuggestions[0]) addLang(langSuggestions[0]); }}
+            />
+            {langQuery && langSuggestions.length > 0 && (
+              <div className="lang-menu">
+                {langSuggestions.map((l) => (
+                  <button key={l} className="lang-opt" onClick={() => addLang(l)}>
+                    <span>{l}</span><span className="n">{langCounts[l]}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -597,7 +626,7 @@ export default function App() {
               </div>
               <div className="country-list scroll" style={{ flex: 1 }}>
                 {countries.map(([c, n]) => (
-                  <button key={c} className={"country-row" + (activeCountry === c ? " on" : "")} onClick={() => selectCountry(c)}>
+                  <button key={c} className={"country-row" + (activeCountry === c ? " on" : "")} onClick={() => selectCountryRow(c)}>
                     <span>{c}</span>
                     <span className="meta">
                       <span className="bar" style={{ width: 8 + (n / maxCountry) * 56 }} />
