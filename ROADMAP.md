@@ -1,41 +1,44 @@
 # Roadmap — DEVERSE
 
-Next steps, by priority.
+Status of the work to "finish" the app. ✅ done · ⬜ open.
 
-## 🔴 Immediate — finish the Vercel deployment
+## ✅ Phase 0 — Stabilisation
+- ✅ ESLint (flat config) + Prettier, with `lint` / `format` scripts.
+- ✅ GitHub Actions CI: `lint` → `test` → `build` on every push/PR.
+- ✅ MIT `LICENSE` + a *Contributing* section in the README.
 
-The only blocked item: Vercel needs authentication.
+## 🟠 Phase 1 — Ship it
+- ✅ Favicon (pixel-art globe) + `theme-color`.
+- ✅ SEO `description` and Open Graph / Twitter card meta in `index.html`.
+- ⬜ **Vercel deploy** — the only step that needs a human: import `ludagg/deverse`
+  at https://vercel.com/new (preset + `vercel.json` are ready). Every push then
+  redeploys. CLI alternative: `npx vercel deploy --prod --token=…`.
 
-- **Token**: create one at https://vercel.com/account/tokens, then deploy with
-  `vercel deploy --prod`.
-- **Dashboard (recommended, continuous deploys)**: https://vercel.com/new →
-  import `ludagg/deverse` → Deploy. Every `git push` then redeploys automatically
-  (`vercel.json` is already in place).
+## ✅ Phase 2 — UX polish
+- ✅ Shareable URLs: search / stack / country / selected dev / online encoded in
+  the query string and restored on load (a deep-linked dev recenters the globe);
+  a "share" button copies the link.
+- ✅ Mobile drawer: the left rail becomes a slide-in drawer below 720px.
+- ✅ Accessibility: arrow-key browsing of developers, Escape to close, focusable
+  globe, `role`/`aria-modal` on dialogs, aria-labels on icon controls.
 
-## 🟠 Short term — repo polish
+## ✅ Phase 4 — Signature features
+- ✅ Connection network: selecting a developer draws great-circle arcs to their
+  (seeded) peers; connected pins are highlighted.
+- ✅ "Online now" mode: a top-bar toggle filters the map to live developers.
 
-- **License** (MIT?) + a "Contributing" section in the README.
-- **GitHub Actions CI**: `npm ci && npm run build` on every push/PR as a
-  regression guard.
-- **Favicon + Open Graph meta** (share image = the hero shot) for a clean preview
-  when the deployed link is shared.
-- **`<meta description>` / `og:` tags** in `index.html`.
+## ✅ Phase 5 — Quality
+- ✅ `src/projection.js` extracted and unit-tested (Vitest) — guards the
+  mirror-orientation fix; dataset tests cover ids, the connection graph and the
+  lang/country tallies. 13 tests, run in CI.
+- ⬜ **Playwright e2e** (the screenshot script is a starting point).
+- ⬜ **Performance**: the bundle embeds world-atlas 110m (~280 kB / ~100 kB
+  gzip) — consider lazy-loading or a lighter outline mask.
 
-## 🟡 Medium term — features
-
-- **Connection network** between developers (lines/arcs across the globe).
-- **"Who's online now" mode** (filter by `online` status).
-- **Real data**: replace the fictional dataset with the GitHub API (the sign-in
-  button becomes a real OAuth flow) → real, geolocated developers.
-- **Shareable state URLs** (dev/country/filter encoded in the URL for deep links).
-- **Accessibility & mobile**: keyboard navigation of pins; the rail is hidden
-  below 720px, so add a mobile drawer.
-
-## 🟢 Long term — robustness & quality
-
-- **Tests**: unit tests for the projection (guard the mirror-orientation fix) and
-  the data generator; Playwright e2e (the screenshot script is a starting point).
-- **Performance**: the bundle is ~280 kB (98 kB gzip) because world-atlas 110m is
-  embedded — consider lazy-loading or a lighter outline mask.
-- **Lightweight backend** (persisted developers, editable profiles) if this grows
-  into a real product.
+## ⬜ Phase 3 — Real data (needs product decisions)
+Turns the demo into a product. Open questions before starting:
+- **Real GitHub OAuth** to replace the mocked flow → needs a registered OAuth
+  app + a client secret, so a small backend or serverless function.
+- Fetch real profile / repos / languages from the GitHub API.
+- Geocode the developer's `location` to lat/lon.
+- Persisted, editable profiles → backend vs. fully client-side?
