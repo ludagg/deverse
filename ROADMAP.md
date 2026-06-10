@@ -1,4 +1,4 @@
-# Roadmap — DEVERSE
+# Roadmap — DEVMAP
 
 Status of the work to "finish" the app. ✅ done · ⬜ open.
 

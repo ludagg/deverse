@@ -1,4 +1,4 @@
-/* DEVERSE — GitHub integration.
+/* DEVMAP — GitHub integration.
  *
  * Two paths to a real developer, both producing the SAME profile shape:
  *   1. OAuth (authorization-code) — the button redirects to GitHub, and the
@@ -112,7 +112,7 @@ export async function fetchPublicProfile(login) {
 
 /* ---------------- Normalisation ---------------- */
 
-/* Collapse the GitHub user + repos payloads into DEVERSE's profile shape.
+/* Collapse the GitHub user + repos payloads into DEVMAP's profile shape.
  * Mirrors normalize() in api/github-callback.js — keep the two in sync. */
 export function normalizeProfile(user, repos) {
   let stars = 0;

@@ -1,4 +1,4 @@
-/* DEVERSE — server-side geocoding (Nominatim / OpenStreetMap).
+/* DEVMAP — server-side geocoding (Nominatim / OpenStreetMap).
  *
  * Sign-in locations are resolved here so the resulting pin is the same for
  * everyone (it's persisted in the DB), not just in one browser. Nominatim's

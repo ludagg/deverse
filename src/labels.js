@@ -1,4 +1,4 @@
-/* DEVERSE — country label anchors for the vector globe.
+/* DEVMAP — country label anchors for the vector globe.
  *
  * From the same bundled world-atlas (110m) geometry that draws the borders, we
  * derive, per country: a display name, a label anchor (the centroid of its

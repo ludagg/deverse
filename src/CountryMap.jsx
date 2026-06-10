@@ -1,4 +1,4 @@
-/* DEVERSE — flat, zoomable mini-map of a single country.
+/* DEVMAP — flat, zoomable mini-map of a single country.
  *
  * Opened by clicking a country name (on the globe or in the by-country list).
  * Draws the country outline from the bundled atlas, its admin-1 regions fetched

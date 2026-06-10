@@ -1,4 +1,4 @@
-/* DEVERSE — real country outlines for the vector globe.
+/* DEVMAP — real country outlines for the vector globe.
    Converts bundled world-atlas (110m) borders into sphere-ready line rings
    (unit vectors). The geometry is imported at build time, so the outlines are
    available synchronously with no network call. Falls back to a coarse traced

@@ -1,4 +1,4 @@
-/* DEVERSE — tallies and relationships derived from a developer list, so the
+/* DEVMAP — tallies and relationships derived from a developer list, so the
  * UI works the same whether the data is the bundled fiction or rows from the
  * database. */
 

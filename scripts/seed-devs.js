@@ -1,4 +1,4 @@
-/* DEVERSE — seed the database with real GitHub developers.
+/* DEVMAP — seed the database with real GitHub developers.
  *
  *   GITHUB_TOKEN=ghp_xxx DATABASE_URL=postgres://… npm run seed
  *

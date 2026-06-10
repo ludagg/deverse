@@ -1,0 +1,19 @@
+{
+  "name": "devmap — World Map of Developers",
+  "short_name": "devmap",
+  "description": "A live, retro pixel-art world map of the global developer community.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#060910",
+  "theme_color": "#08130f",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}

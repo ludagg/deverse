@@ -1,9 +1,9 @@
-# DEVERSE — World Map of Developers
+# DEVMAP — World Map of Developers
 
 A retro pixel-art / CRT world map of the global developer community. Implemented
 from a Claude Design handoff bundle as a real **Vite + React** app.
 
-![DEVERSE — vector globe with real country outlines and the developer UI](docs/screenshots/hero.png)
+![DEVMAP — vector globe with real country outlines and the developer UI](docs/screenshots/hero.png)
 
 ## Screenshots
 
@@ -68,7 +68,7 @@ npm run format       # Prettier (write)
 
 ## GitHub sign-in
 
-DEVERSE pulls **real** GitHub data. There are two modes:
+DEVMAP pulls **real** GitHub data. There are two modes:
 
 - **OAuth (recommended for production).** Create a GitHub OAuth App at
   <https://github.com/settings/developers> → *New OAuth App*, with the
@@ -131,4 +131,4 @@ Contributions are welcome.
 
 ## License
 
-[MIT](LICENSE) © DEVERSE
+[MIT](LICENSE) © DEVMAP

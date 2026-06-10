@@ -1,4 +1,4 @@
-/* DEVERSE — retro pixel-art world map of developers */
+/* DEVMAP — retro pixel-art world map of developers */
 
 :root {
   --bg-deep: #060910;
@@ -538,6 +538,9 @@ img.avatar { object-fit: cover; }
 .lang-opt:last-child { border-bottom: none; }
 .lang-opt:hover { background: rgba(57, 211, 83, 0.1); color: var(--green); }
 .lang-opt .n { color: var(--muted); font-size: 14px; }
+.lang-opt.free { color: var(--teal); border-top: 1px solid var(--line); }
+.lang-opt.free:hover { background: rgba(45, 212, 191, 0.1); color: var(--teal); }
+.lang-opt.free .n { color: var(--teal-dim); }
 
 /* flat country mini-map — opens on clicking a country name */
 .cmap {

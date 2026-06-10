@@ -1,4 +1,4 @@
-/* DEVERSE — fictional but plausible developer dataset.
+/* DEVMAP — fictional but plausible developer dataset.
    Seeded so it's stable across reloads. Exported as the default module value. */
 
 // --- seeded RNG (mulberry32) ---
@@ -171,7 +171,7 @@ const topLangs = Object.keys(langCounts).sort((a, b) => langCounts[b] - langCoun
 const countryCounts = {};
 for (const d of developers) countryCounts[d.country] = (countryCounts[d.country] || 0) + 1;
 
-const DEVERSE_DATA = {
+const DEVMAP_DATA = {
   developers,
   langCounts,
   topLangs,
@@ -180,4 +180,4 @@ const DEVERSE_DATA = {
   LANGS, FOCUS,
 };
 
-export default DEVERSE_DATA;
+export default DEVMAP_DATA;
