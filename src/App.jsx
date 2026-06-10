@@ -97,12 +97,19 @@ function GitHubAuth() {
       </button>
       {modal && (
         <div className="modal-overlay" onClick={() => !authing && setModal(false)}>
-          <div className="gh-modal panel" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="gh-modal panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="gh-modal-title"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => { if (e.key === "Escape" && !authing) setModal(false); }}
+          >
             <div className="gh-modal-top">
               <GitHubMark size={26} />
-              <button className="gh-x" onClick={() => setModal(false)} disabled={authing}>×</button>
+              <button className="gh-x" aria-label="Close" onClick={() => setModal(false)} disabled={authing}>×</button>
             </div>
-            <div className="gh-modal-title">Authorize <b>DEVERSE</b></div>
+            <div className="gh-modal-title" id="gh-modal-title">Authorize <b>DEVERSE</b></div>
             <div className="gh-modal-sub">Join the map — sign up is GitHub-only.</div>
             <div className="gh-field">
               <label>github.com /</label>
@@ -135,8 +142,8 @@ function GitHubAuth() {
 function Profile({ d, onClose }) {
   if (!d) return null;
   return (
-    <div className="profile panel">
-      <button className="close" onClick={onClose} aria-label="close">×</button>
+    <div className="profile panel" role="dialog" aria-label={"Developer profile: " + d.name}>
+      <button className="close" onClick={onClose} aria-label="Close profile">×</button>
       <div className="ph">
         <PixelAvatar seed={d.avatar} size={64} />
         <div>
@@ -175,18 +182,54 @@ function Profile({ d, onClose }) {
   );
 }
 
+/* ---- shareable state <-> URL query string ---- */
+function readState() {
+  const p = new URLSearchParams(window.location.search);
+  const langs = (p.get("langs") || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const devRaw = p.get("dev");
+  const devId = devRaw && /^\d+$/.test(devRaw) ? Number(devRaw) : null;
+  return {
+    query: p.get("q") || "",
+    activeLangs: new Set(langs),
+    activeCountry: p.get("country") || null,
+    selectedId: devId,
+  };
+}
+
 export default function App() {
-  const [query, setQuery] = useState("");
-  const [activeLangs, setActiveLangs] = useState(() => new Set());
-  const [activeCountry, setActiveCountry] = useState(null);
+  const init = useMemo(() => readState(), []);
+  const [query, setQuery] = useState(init.query);
+  const [activeLangs, setActiveLangs] = useState(() => init.activeLangs);
+  const [activeCountry, setActiveCountry] = useState(init.activeCountry);
   const [hoveredId, setHoveredId] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId] = useState(init.selectedId);
   const [autoToggle, setAutoToggle] = useState(true);
   const [focusTarget, setFocusTarget] = useState(null);
   const [booted, setBooted] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const globeRef = useRef(null);
 
   useEffect(() => { const t = setTimeout(() => setBooted(true), 1100); return () => clearTimeout(t); }, []);
+
+  // recenter on a deep-linked developer at startup
+  useEffect(() => {
+    if (init.selectedId == null) return;
+    const d = D.developers.find((x) => x.id === init.selectedId);
+    if (d) setFocusTarget({ lat: d.lat, lon: d.lon, k: d.id });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // keep the URL in sync so the current view is shareable
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (query.trim()) p.set("q", query.trim());
+    if (activeLangs.size) p.set("langs", [...activeLangs].join(","));
+    if (activeCountry) p.set("country", activeCountry);
+    if (selectedId != null) p.set("dev", String(selectedId));
+    const qs = p.toString();
+    window.history.replaceState(null, "", qs ? "?" + qs : window.location.pathname);
+  }, [query, activeLangs, activeCountry, selectedId]);
 
   const topLangs = useMemo(() => D.topLangs.slice(0, 14), []);
   const countries = useMemo(
@@ -224,6 +267,7 @@ export default function App() {
     setActiveCountry((cur) => (cur === c ? null : c));
     const cc = D.cities.find((x) => x.country === c);
     if (cc && activeCountry !== c) { globeRef.current && globeRef.current.focusLatLon(cc.lat, cc.lon); }
+    setRailOpen(false);
   };
 
   const handleSelect = useCallback((id) => {
@@ -235,11 +279,42 @@ export default function App() {
   }, []);
   const handleHover = useCallback((id) => setHoveredId(id), []);
 
+  // keyboard: ←/→ (or ↑/↓) browse the currently shown developers, Esc closes
+  const cycleSelection = useCallback((dir) => {
+    const list = dimSet ? D.developers.filter((d) => dimSet.has(d.id)) : D.developers;
+    if (!list.length) return;
+    const at = list.findIndex((d) => d.id === selectedId);
+    const next = at === -1 ? (dir > 0 ? 0 : list.length - 1) : (at + dir + list.length) % list.length;
+    handleSelect(list[next].id);
+  }, [dimSet, selectedId, handleSelect]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") { setRailOpen(false); if (selectedId != null) handleSelect(null); return; }
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); cycleSelection(1); }
+      else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); cycleSelection(-1); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedId, cycleSelection, handleSelect]);
+
+  const share = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      setCopied(false);
+    }
+  };
+
   // Enter in search → focus & select first match
   const onSearchKey = (e) => {
     if (e.key === "Enter" && dimSet && dimSet.size) {
       const first = D.developers.find((d) => dimSet.has(d.id));
-      if (first) handleSelect(first.id);
+      if (first) { handleSelect(first.id); setRailOpen(false); }
     }
   };
 
@@ -277,8 +352,19 @@ export default function App() {
         </div>
       </div>
 
+      {/* mobile drawer toggle */}
+      <button
+        className="rail-toggle panel"
+        aria-label={railOpen ? "Close filters" : "Open search & filters"}
+        aria-expanded={railOpen}
+        onClick={() => setRailOpen((v) => !v)}
+      >
+        {railOpen ? "×" : "≡"} <span>filters</span>
+      </button>
+      {railOpen && <div className="drawer-scrim" onClick={() => setRailOpen(false)} />}
+
       {/* left rail */}
-      <div className="rail">
+      <div className={"rail" + (railOpen ? " open" : "")} role="search">
         <div className="search panel">
           <span className="prompt">&gt;</span>
           <input
@@ -330,15 +416,18 @@ export default function App() {
 
       {/* controls */}
       <div className="controls panel">
-        <button className="ctrl" title="Zoom out" onClick={() => globeRef.current.zoomBy(0.85)}>–</button>
-        <button className="ctrl" title="Zoom in" onClick={() => globeRef.current.zoomBy(1.18)}>+</button>
-        <button className={"ctrl wide" + (autoToggle ? " on" : "")} onClick={() => setAutoToggle((v) => !v)}>
+        <button className="ctrl" title="Zoom out" aria-label="Zoom out" onClick={() => globeRef.current.zoomBy(0.85)}>–</button>
+        <button className="ctrl" title="Zoom in" aria-label="Zoom in" onClick={() => globeRef.current.zoomBy(1.18)}>+</button>
+        <button className={"ctrl wide" + (autoToggle ? " on" : "")} aria-pressed={autoToggle} aria-label="Toggle auto-rotation" onClick={() => setAutoToggle((v) => !v)}>
           ◐ spin
         </button>
-        <button className="ctrl wide" onClick={() => { globeRef.current.reset(); setActiveCountry(null); }}>⟲ reset</button>
+        <button className="ctrl wide" aria-label="Reset view" onClick={() => { globeRef.current.reset(); setActiveCountry(null); }}>⟲ reset</button>
+        <button className={"ctrl wide" + (copied ? " on" : "")} aria-label="Copy shareable link" onClick={share}>
+          {copied ? "✓ copied" : "⤴ share"}
+        </button>
       </div>
 
-      <div className="hint">drag to rotate · scroll to zoom · <b>click a pin</b> for the profile</div>
+      <div className="hint">drag to rotate · scroll to zoom · <b>← →</b> browse devs · <b>click a pin</b> for the profile</div>
 
       <div className="legend panel">
         <div className="lg"><span className="sw" style={{ background: "var(--green)" }} />developer</div>

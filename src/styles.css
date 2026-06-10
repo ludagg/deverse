@@ -262,6 +262,22 @@ button { font-family: inherit; color: inherit; cursor: pointer; background: none
 .country-row .meta { display: flex; align-items: center; gap: 8px; }
 .country-row .cn { color: var(--muted); font-size: 15px; min-width: 22px; text-align: right; }
 
+/* ---------- Mobile drawer toggle ---------- */
+.rail-toggle {
+  display: none;
+  position: absolute; top: 64px; left: 18px; z-index: 56;
+  align-items: center; gap: 7px;
+  padding: 8px 12px; font-size: 17px; color: var(--green);
+}
+.rail-toggle span { font-size: 15px; color: var(--ink-2); }
+.rail-toggle:hover { border-color: var(--green-dim); }
+.drawer-scrim {
+  display: none;
+  position: absolute; inset: 0; z-index: 54;
+  background: rgba(3,6,9,.6);
+  animation: fadein .14s steps(3);
+}
+
 /* ---------- Tooltip ---------- */
 .tip {
   position: absolute; z-index: 35; pointer-events: none;
@@ -383,6 +399,21 @@ button { font-family: inherit; color: inherit; cursor: pointer; background: none
   .profile { width: 280px; }
 }
 @media (max-width: 720px) {
-  .rail, .legend { display: none; }
+  .legend, .hint { display: none; }
+  .rail-toggle { display: flex; }
+  .drawer-scrim { display: block; }
+
+  /* the rail becomes a slide-in drawer */
+  .rail {
+    top: 0; bottom: 0; left: 0; width: 280px; max-width: 86vw;
+    padding: 64px 12px 16px;
+    background: rgba(6,9,16,.97);
+    border-right: 2px solid var(--line);
+    transform: translateX(-110%);
+    transition: transform .2s steps(4);
+    z-index: 55;
+  }
+  .rail.open { transform: none; }
+
   .profile { left: 12px; right: 12px; width: auto; top: auto; bottom: 64px; }
 }

@@ -298,7 +298,13 @@ const Globe = forwardRef(function Globe(props, ref) {
 
   return (
     <div className="globe-stage" ref={wrapRef}>
-      <canvas ref={canvasRef} className="globe-canvas" />
+      <canvas
+        ref={canvasRef}
+        className="globe-canvas"
+        tabIndex={0}
+        role="application"
+        aria-label="Interactive developer globe. Drag to rotate, scroll to zoom, use the left and right arrow keys to browse developers."
+      />
       {tip && (
         <div className="tip" style={{ left: tip.x, top: tip.y }}>
           <span className="h">{tip.d.name}</span> · {tip.d.city}
