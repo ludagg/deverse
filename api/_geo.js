@@ -29,7 +29,7 @@ function ok(lat, lon) {
 /* freeipapi.com — HTTPS, no key. */
 async function fromFreeIpApi(addr) {
   try {
-    const r = await fetchT("https://freeipapi.com/api/json/" + encodeURIComponent(addr), UA, 4000);
+    const r = await fetchT("https://freeipapi.com/api/json/" + encodeURIComponent(addr), UA, 7000);
     if (!r.ok) return null;
     const j = await r.json();
     if (!ok(j.latitude, j.longitude)) return null;
@@ -42,7 +42,7 @@ async function fromFreeIpApi(addr) {
 /* ip-api.com — HTTP-only on the free tier, fine for a server-side fallback. */
 async function fromIpApi(addr) {
   try {
-    const r = await fetchT("http://ip-api.com/json/" + encodeURIComponent(addr) + "?fields=status,lat,lon,city,country", UA, 4000);
+    const r = await fetchT("http://ip-api.com/json/" + encodeURIComponent(addr) + "?fields=status,lat,lon,city,country", UA, 7000);
     if (!r.ok) return null;
     const j = await r.json();
     if (j.status !== "success" || !ok(j.lat, j.lon)) return null;
@@ -69,7 +69,7 @@ export async function geocode(location) {
   try {
     const r = await fetchT("https://nominatim.openstreetmap.org/search?" + p.toString(), {
       headers: { "user-agent": "devmap (github map; +https://devmap.world)", accept: "application/json" },
-    }, 5000);
+    }, 9000);
     if (!r.ok) return null;
     const arr = await r.json();
     if (!Array.isArray(arr) || !arr[0]) return null;

@@ -61,9 +61,10 @@ export default async function handler(req, res) {
       limit 2000
     `;
     // time-box the query so a slow/locked DB can't hang the function open
+    // (generous — a normal read is a few ms; this only trips on a real stall)
     const rows = await Promise.race([
       query,
-      new Promise((_, rej) => setTimeout(() => rej(new Error("db timeout")), 4000)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("db timeout")), 8000)),
     ]);
     const body = JSON.stringify(rows.map(rowToDev));
     memo = { at: Date.now(), body };
