@@ -2,6 +2,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import D from "./data.js";
 import Globe from "./Globe.jsx";
+import { tallies, peersOf } from "./derive.js";
 import {
   oauthConfigured,
   beginOAuth,
@@ -79,8 +80,9 @@ function GitHubAuth({ me, onAuthed, onSignOut, onShowProfile }) {
     setBusy("Completing sign-in…");
     (async () => {
       try {
-        const profile = await exchangeOAuthCode(code);
-        onAuthed(await buildDeveloper(profile));
+        // the serverless function geocodes, persists to the shared DB and
+        // returns a ready-to-pin developer
+        onAuthed(await exchangeOAuthCode(code));
       } catch (e) {
         setError(e.message || "Sign-in failed.");
         setModal(true);
@@ -291,8 +293,30 @@ export default function App() {
     else localStorage.removeItem("deverse_me");
   }, [me]);
 
-  // the seeded fiction with the real signed-in user pinned on top
-  const developers = useMemo(() => (me ? [...D.developers, me] : D.developers), [me]);
+  // real developers from the shared database; falls back to the bundled fiction
+  // until the DB is configured (or if the request fails) so nothing ever breaks
+  const [remoteDevs, setRemoteDevs] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/developers")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => alive && setRemoteDevs(Array.isArray(list) ? list : []))
+      .catch(() => alive && setRemoteDevs([]));
+    return () => { alive = false; };
+  }, []);
+
+  const base = remoteDevs && remoteDevs.length ? remoteDevs : D.developers;
+
+  // overlay the signed-in user immediately (before the DB round-trip catches up)
+  const developers = useMemo(() => {
+    if (!me) return base;
+    return base.some((d) => d.id === me.id) ? base : [...base, me];
+  }, [base, me]);
+
+  const { langCounts, topLangs, countryCounts } = useMemo(() => {
+    const t = tallies(developers);
+    return { langCounts: t.langCounts, topLangs: t.topLangs.slice(0, 14), countryCounts: t.countryCounts };
+  }, [developers]);
 
   const onlineCount = useMemo(() => developers.filter((d) => d.status === "online").length, [developers]);
   const countryCount = useMemo(() => new Set(developers.map((d) => d.country).filter(Boolean)).size, [developers]);
@@ -319,12 +343,11 @@ export default function App() {
     window.history.replaceState(null, "", qs ? "?" + qs : window.location.pathname);
   }, [query, activeLangs, activeCountry, selectedId, onlineOnly]);
 
-  const topLangs = useMemo(() => D.topLangs.slice(0, 14), []);
   const countries = useMemo(
-    () => Object.entries(D.countryCounts).sort((a, b) => b[1] - a[1]),
-    []
+    () => Object.entries(countryCounts).sort((a, b) => b[1] - a[1]),
+    [countryCounts]
   );
-  const maxCountry = countries[0][1];
+  const maxCountry = countries.length ? countries[0][1] : 1;
 
   // which dev ids pass the active filters/search
   const dimSet = useMemo(() => {
@@ -352,15 +375,16 @@ export default function App() {
 
   const selected = useMemo(() => developers.find((d) => d.id === selectedId) || null, [selectedId, developers]);
 
-  // the selected developer's connection network (for arcs + highlighted nodes)
-  const linkSet = useMemo(() => (selected ? new Set(selected.connections) : null), [selected]);
+  // the selected developer's network (seeded graph for fiction, derived peers
+  // sharing a language for real developers) — drives the arcs + highlights
+  const linkSet = useMemo(() => peersOf(selected, developers), [selected, developers]);
 
   const toggleLang = (l) => {
     setActiveLangs((prev) => { const n = new Set(prev); n.has(l) ? n.delete(l) : n.add(l); return n; });
   };
   const selectCountry = (c) => {
     setActiveCountry((cur) => (cur === c ? null : c));
-    const cc = D.cities.find((x) => x.country === c);
+    const cc = developers.find((x) => x.country === c && x.lat != null);
     if (cc && activeCountry !== c) { globeRef.current && globeRef.current.focusLatLon(cc.lat, cc.lon); }
     setRailOpen(false);
   };
@@ -437,6 +461,7 @@ export default function App() {
         onSelect={handleSelect}
         hoveredId={hoveredId}
         selectedId={selectedId}
+        meId={me ? me.id : null}
         dimSet={dimSet}
         linkSet={linkSet}
         focusTarget={focusTarget}
@@ -505,7 +530,7 @@ export default function App() {
           <div className="chips scroll">
             {topLangs.map((l) => (
               <button key={l} className={"chip" + (activeLangs.has(l) ? " on" : "")} onClick={() => toggleLang(l)}>
-                {l}<span className="n">{D.langCounts[l]}</span>
+                {l}<span className="n">{langCounts[l]}</span>
               </button>
             ))}
           </div>
@@ -593,7 +618,7 @@ export default function App() {
         <div>
           <div className="bw">DEVERSE&nbsp;OS&nbsp;v1.0</div>
           <div style={{ marginTop: 16, color: "var(--ink-2)" }}>booting world map…</div>
-          <div style={{ color: "var(--green)" }}>loading {D.developers.length} developers ▓▓▓▓▓▓▓▓</div>
+          <div style={{ color: "var(--green)" }}>loading {developers.length} developers ▓▓▓▓▓▓▓▓</div>
         </div>
       </div>
     </div>

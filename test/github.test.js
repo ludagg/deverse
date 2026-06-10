@@ -66,11 +66,11 @@ describe("seniority", () => {
 });
 
 describe("buildDeveloper", () => {
-  it("produces a globe-ready developer with a real flag and offset id", async () => {
+  it("produces a globe-ready developer keyed by the GitHub id", async () => {
     // location empty → geocode returns null synchronously, no network
     const dev = await buildDeveloper(normalizeProfile({ login: "octocat", id: 583231 }, []));
     expect(dev.real).toBe(true);
-    expect(dev.id).toBe(1_000_000 + 583231);
+    expect(dev.id).toBe(583231);
     expect(dev.handle).toBe("@octocat");
     expect(dev.lat).toBe(null);
     expect(dev.located).toBe(false);

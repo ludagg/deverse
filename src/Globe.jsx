@@ -202,11 +202,11 @@ const Globe = forwardRef(function Globe(props, ref) {
 
       // pins
       const pins = [];
-      const hov = P.hoveredId, selId = P.selectedId, dim = P.dimSet, lnk = P.linkSet;
+      const hov = P.hoveredId, selId = P.selectedId, dim = P.dimSet, lnk = P.linkSet, meId = P.meId;
       ctx.save();
       for (let i = 0; i < P.developers.length; i++) {
         const d = P.developers[i];
-        if (d.lat == null || d.lon == null) continue; // unlocated real users
+        if (d.lat == null || d.lon == null) continue; // unlocated developers
         const v = lonLatToVec(d.lat, d.lon);
         const { sx, sy, zz } = worldToScreen(v[0], v[1], v[2], s.yaw, s.pitch, cx, cy, R);
         if (zz <= 0.03) continue;
@@ -216,8 +216,8 @@ const Globe = forwardRef(function Globe(props, ref) {
         pins.push({ id: d.id, x: sx, y: sy, z: zz });
         const tw = 0.5 + 0.5 * Math.sin(s.t * 0.05 + d.id * 1.7);
 
-        // real signed-in user — a distinct magenta diamond that ignores dimming
-        if (d.real) {
+        // the signed-in user — a distinct magenta diamond that ignores dimming
+        if (meId != null && d.id === meId) {
           const rr = (isHov ? 4 : 3.4) * res;
           ctx.shadowColor = "#e84d8a"; ctx.shadowBlur = (isHov ? 16 : 11) * res;
           ctx.fillStyle = isHov ? "#ff79ac" : "#e84d8a";
@@ -370,9 +370,9 @@ const Globe = forwardRef(function Globe(props, ref) {
         aria-label="Interactive developer globe. Drag to rotate, scroll to zoom, use the left and right arrow keys to browse developers."
       />
       {tip && (
-        <div className={"tip" + (tip.d.real ? " real" : "")} style={{ left: tip.x, top: tip.y }}>
+        <div className={"tip" + (props.meId === tip.d.id ? " real" : "")} style={{ left: tip.x, top: tip.y }}>
           <span className="h">{tip.d.name}</span> · {tip.d.city}
-          {tip.d.real && <span className="tip-you"> · you</span>}
+          {props.meId === tip.d.id && <span className="tip-you"> · you</span>}
         </div>
       )}
     </div>

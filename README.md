@@ -16,14 +16,18 @@ from a Claude Design handoff bundle as a real **Vite + React** app.
 - **3D vector globe** rendered to canvas with **real country outlines** (neon-green
   borders on a dark sphere). Borders come from bundled `world-atlas` (110m) geometry
   projected onto the sphere with back-face culling — no network call at runtime.
-- **327 seeded fictional developers** across 52 real cities, each with stack, focus,
-  experience, repos, stars, status, and a generated pixel-art identicon.
-- **Connection network** — selecting a developer draws great-circle arcs to their
-  peers, and an **"online now"** toggle filters the map to live developers.
-- **Pulsing pins** — hover for a tooltip, click to recenter the globe and open a
-  detailed profile card.
-- **Search** (devs / cities / stacks; `Enter` selects the first match), **stack
-  filters** (non-matching pins dim), and a clickable **by-country** list.
+- **Real developers from a database** (Postgres) — populated from GitHub by city,
+  each with stack, focus, experience, repos, stars, followers and avatar. Falls
+  back to a 327-strong seeded fiction dataset when no DB is configured. See
+  [Database & real developers](#database--real-developers).
+- **Seniority rating (★1–5)** computed from each developer's metrics, shown in the
+  profile and on every result row, so a senior reads differently from a junior.
+- **Connection network** — selecting a developer draws great-circle arcs to peers
+  sharing their stack, and an **"online now"** toggle filters to live developers.
+- **Cyan pulsing pins** — hover for a tooltip, click to recenter the globe and open
+  a detailed profile card.
+- **Search** (devs / cities / stacks) and **stack filters** that produce a tappable
+  **results list**, plus a clickable **by-country** list. Mobile-friendly drawer.
 - **Sign in with GitHub (real data)** — real OAuth via a serverless function, or
   a public-API-by-username fallback. Your actual profile, repos, top languages
   and stars are pulled from GitHub, your `location` is geocoded, and you're
@@ -48,9 +52,14 @@ npm run format       # Prettier (write)
 
 | File | Role |
 | --- | --- |
-| `src/data.js` | Seeded developer dataset (stable across reloads) |
-| `src/github.js` | Real GitHub integration: OAuth, public-API fetch, geocoding |
-| `api/github-callback.js` | Serverless OAuth token exchange (Vercel; secret stays server-side) |
+| `src/data.js` | Seeded fiction dataset — the fallback when the DB is empty/unset |
+| `src/github.js` | Real GitHub integration: OAuth, public-API fetch, geocoding, rating |
+| `src/derive.js` | Tallies (langs/countries) + peer graph derived from any dev list |
+| `api/developers.js` | `GET /api/developers` — the map data, read from Postgres |
+| `api/github-callback.js` | Serverless OAuth: token exchange, geocode, upsert to the DB |
+| `api/_db.js` / `api/_geo.js` | Postgres access layer / server-side Nominatim geocoding |
+| `scripts/seed-devs.js` | `npm run seed` — populate the DB with real GitHub developers |
+| `db/schema.sql` | Database schema (run once in your provider's SQL editor) |
 | `src/geo.js` | Builds country-outline line rings from bundled world-atlas |
 | `src/projection.js` | Shared sphere projection math (unit-tested) |
 | `src/Globe.jsx` | Canvas vector-globe engine (projection, pins, arcs, interaction) |
@@ -81,9 +90,33 @@ DEVERSE pulls **real** GitHub data. There are two modes:
   (rate-limited to 60 requests/hour per IP).
 
 Either way, the free-text `location` is geocoded via
-[Nominatim/OpenStreetMap](https://nominatim.org/) (cached in `localStorage`) and
-the developer is pinned on the globe. `npm run dev` runs the serverless function
-locally through a small Vite middleware, so OAuth works end-to-end on localhost.
+[Nominatim/OpenStreetMap](https://nominatim.org/) and the developer is pinned on
+the globe. `npm run dev` runs the serverless functions locally through a small
+Vite middleware, so OAuth works end-to-end on localhost.
+
+## Database & real developers
+
+The map is backed by **Postgres** (Supabase / Neon / Vercel Postgres — any
+standard Postgres works). Without a database the app still runs: `GET
+/api/developers` returns nothing and the front falls back to the bundled fiction.
+
+1. **Create a database** and run [`db/schema.sql`](db/schema.sql) in its SQL
+   editor (Supabase → *SQL Editor → New query*).
+2. **Set `DATABASE_URL`** (the *pooled* connection string) in `.env` for local
+   dev and in Vercel's env vars for production. See [`.env.example`](.env.example).
+3. **Seed real developers** — with a read-only GitHub token:
+   ```bash
+   GITHUB_TOKEN=ghp_xxx DATABASE_URL=postgres://… npm run seed
+   ```
+   For each city it pulls the most-followed GitHub users located there, with
+   their repos, languages, stars and followers. The city/coordinates come from
+   the app's own table (the search is *by* city), so the map location is always
+   correct. Re-run any time to refresh the metrics.
+
+Once a database is configured, **OAuth sign-ins are persisted and shared**: when
+someone signs in they're upserted into the DB and appear on *everyone's* map
+(with their real geocoded location), not just their own browser. The signed-in
+user is highlighted with a distinct **magenta** marker.
 
 ## Contributing
 

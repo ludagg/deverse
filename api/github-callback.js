@@ -6,6 +6,9 @@
  * never leaves the server. Configure with the GITHUB_CLIENT_ID /
  * GITHUB_CLIENT_SECRET environment variables (see .env.example). */
 
+import { db, upsertDeveloper } from "./_db.js";
+import { geocode } from "./_geo.js";
+
 const GH = "https://api.github.com";
 
 export default async function handler(req, res) {
@@ -76,8 +79,42 @@ export default async function handler(req, res) {
     const reposRes = await gh("/user/repos?per_page=100&sort=pushed&type=owner");
     if (reposRes.ok) repos = await reposRes.json();
 
+    const profile = normalize(user, repos);
+    const geo = await geocode(profile.location);
+    const dev = toDeveloper(profile, geo);
+
+    // persist & share: the signed-in user shows up on everyone's map
+    const sql = db();
+    if (sql) {
+      try {
+        await upsertDeveloper(sql, {
+          github_id: profile.github_id,
+          login: profile.login,
+          name: profile.name,
+          avatar_url: profile.avatar_url,
+          bio: profile.bio,
+          html_url: profile.html_url,
+          location_raw: profile.location,
+          city: dev.city,
+          country: dev.country,
+          lat: dev.lat,
+          lon: dev.lon,
+          langs: profile.langs,
+          focus: dev.focus,
+          years: dev.years,
+          repos: profile.public_repos,
+          stars: profile.stars,
+          followers: profile.followers,
+          status: "online",
+          source: "signin",
+        });
+      } catch {
+        /* never fail sign-in because of a DB hiccup */
+      }
+    }
+
     res.statusCode = 200;
-    return res.end(JSON.stringify(normalize(user, repos)));
+    return res.end(JSON.stringify(dev));
   } catch {
     res.statusCode = 502;
     return res.end(JSON.stringify({ error: "GitHub request failed." }));
@@ -98,6 +135,50 @@ function readJson(req) {
     });
     req.on("error", reject);
   });
+}
+
+/* Focus label from a stack — mirrors deriveFocus() in src/github.js. */
+function focusFromLangs(langs) {
+  const m = {
+    Rust: "Systems", Zig: "Systems", C: "Systems", "C++": "Systems",
+    Go: "Backend", Python: "Data / ML", Jupyter: "Data / ML", "Jupyter Notebook": "Data / ML", R: "Data / ML",
+    TypeScript: "Full-stack", JavaScript: "Frontend", Vue: "Frontend", Svelte: "Frontend",
+    Swift: "Mobile", Kotlin: "Mobile", Dart: "Mobile", "Objective-C": "Mobile",
+    Java: "Backend", Ruby: "Backend", PHP: "Backend", Elixir: "Backend",
+    Solidity: "Blockchain", Shell: "DevOps / SRE", HCL: "DevOps / SRE", GLSL: "Graphics",
+  };
+  for (const l of langs) if (m[l]) return m[l];
+  return langs.length ? "Polyglot" : "Open source";
+}
+
+/* Normalised profile (+ optional geocode) → the developer shape the front uses. */
+function toDeveloper(p, geo) {
+  const years = p.created_at
+    ? Math.max(1, Math.round((Date.now() - new Date(p.created_at).getTime()) / 3.15576e10))
+    : 1;
+  return {
+    id: p.github_id,
+    real: true,
+    login: p.login,
+    name: p.name,
+    handle: "@" + p.login,
+    city: geo ? geo.city : p.location || "Somewhere",
+    country: geo ? geo.country : "",
+    lat: geo ? geo.lat : null,
+    lon: geo ? geo.lon : null,
+    located: Boolean(geo),
+    langs: p.langs,
+    focus: focusFromLangs(p.langs),
+    years,
+    status: "online",
+    repos: p.public_repos,
+    stars: p.stars,
+    followers: p.followers,
+    tagline: p.bio || "on github, on the map",
+    avatarUrl: p.avatar_url,
+    htmlUrl: p.html_url,
+    connections: [],
+  };
 }
 
 /* Collapse the GitHub user + repos payloads into DEVERSE's profile shape.

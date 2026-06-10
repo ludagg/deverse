@@ -48,6 +48,22 @@ Turns the demo into a product. The mocked sign-in is gone.
 - ✅ **Geocoding** of the free-text `location` via Nominatim/OpenStreetMap, cached
   in `localStorage`; unlocated users still get a profile, just no pin.
 - ✅ The signed-in user is pinned on the globe (distinct **magenta** marker)
-  *on top of* the seeded fiction, and persists across reloads.
-- ⬜ Shared, editable profiles for *other* real users → needs a datastore
-  (today only the signed-in user is real; the rest stay seeded).
+  and persists across reloads.
+
+## ✅ Phase 6 — Database & real developers
+The map is now backed by **Postgres** (Supabase / Neon / Vercel Postgres).
+- ✅ Schema (`db/schema.sql`) + serverless access layer (`api/_db.js`) using a
+  provider-agnostic `DATABASE_URL`. Graceful fallback to the bundled fiction
+  when no DB is configured, so nothing ever breaks during setup.
+- ✅ `GET /api/developers` reads the map from the DB; the front derives lang /
+  country tallies and the peer graph from whatever list it gets (`src/derive.js`).
+- ✅ **Shared sign-ins**: OAuth callback geocodes server-side and upserts the
+  user, so signing in puts you on *everyone's* map (not just your browser).
+- ✅ `npm run seed` (`scripts/seed-devs.js`) populates real GitHub developers
+  per city — location comes from the app's city table, so it's always correct.
+- ✅ **Seniority rating (★1–5)** from metrics (`seniority()`), in the profile and
+  result rows.
+- ✅ Mobile fixes: smooth touch rotation (`touch-action`), compact top bar,
+  tappable results list, cyan pins.
+- ⬜ **Editable profiles** (let a signed-in user tweak their focus/tagline).
+- ⬜ **Periodic refresh** of seeded metrics (cron / scheduled function).

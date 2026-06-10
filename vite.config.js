@@ -16,14 +16,18 @@ function devApi(env) {
       // Only set when present — assigning undefined would coerce to "undefined".
       if (env.GITHUB_CLIENT_ID && !process.env.GITHUB_CLIENT_ID) process.env.GITHUB_CLIENT_ID = env.GITHUB_CLIENT_ID;
       if (env.GITHUB_CLIENT_SECRET && !process.env.GITHUB_CLIENT_SECRET) process.env.GITHUB_CLIENT_SECRET = env.GITHUB_CLIENT_SECRET;
-      server.middlewares.use("/api/github-callback", async (req, res, next) => {
-        try {
-          const mod = await server.ssrLoadModule("/api/github-callback.js");
-          await mod.default(req, res);
-        } catch (e) {
-          next(e);
-        }
-      });
+      if (env.DATABASE_URL && !process.env.DATABASE_URL) process.env.DATABASE_URL = env.DATABASE_URL;
+      const route = (path, file) =>
+        server.middlewares.use(path, async (req, res, next) => {
+          try {
+            const mod = await server.ssrLoadModule(file);
+            await mod.default(req, res);
+          } catch (e) {
+            next(e);
+          }
+        });
+      route("/api/github-callback", "/api/github-callback.js");
+      route("/api/developers", "/api/developers.js");
     },
   };
 }

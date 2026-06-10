@@ -23,7 +23,6 @@ export const oauthConfigured = () => Boolean(CLIENT_ID);
 
 const STATE_KEY = "deverse_oauth_state";
 const GEO_CACHE = "deverse_geocache";
-const ID_OFFSET = 1_000_000; // keep real ids clear of the 0..N seeded ids
 
 /* ---------------- OAuth (authorization-code) ---------------- */
 
@@ -73,7 +72,8 @@ export function pendingOAuthCode() {
   return code;
 }
 
-/* Exchange the code for a normalised profile via the serverless function. */
+/* Exchange the code via the serverless function, which geocodes, persists the
+ * user to the shared database, and returns a ready-to-pin developer object. */
 export async function exchangeOAuthCode(code) {
   const r = await fetch("/api/github-callback", {
     method: "POST",
@@ -272,7 +272,8 @@ export async function buildDeveloper(profile) {
   const years = profile.created_at
     ? Math.max(1, Math.round((Date.now() - new Date(profile.created_at).getTime()) / 3.15576e10))
     : 1;
-  const id = ID_OFFSET + (Number.isFinite(profile.github_id) ? profile.github_id : hashLogin(profile.login));
+  // GitHub numeric ids are far above the seeded 0..N range, so no collision.
+  const id = Number.isFinite(profile.github_id) ? profile.github_id : hashLogin(profile.login);
   return {
     id,
     real: true,
