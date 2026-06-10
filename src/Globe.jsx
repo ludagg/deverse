@@ -4,6 +4,12 @@ import { GEO_RINGS } from "./geo.js";
 
 const DEG = Math.PI / 180;
 
+/* lat/lon (degrees) → unit vector on the sphere */
+function unitVec(lat, lon) {
+  const la = lat * DEG, lo = lon * DEG, cl = Math.cos(la);
+  return [cl * Math.cos(lo), Math.sin(la), cl * Math.sin(lo)];
+}
+
 /* Latitude/longitude graticule as line rings of unit vectors (Float32Array). */
 function buildGraticule() {
   const rings = [];
@@ -161,9 +167,50 @@ const Globe = forwardRef(function Globe(props, ref) {
       }
       ctx.restore();
 
+      // connection arcs from the selected developer (great-circle, lifted off
+      // the sphere; drawn outside the clip so the arcs can rise above the limb)
+      const linkSet = P.linkSet;
+      if (P.selectedId != null && linkSet && linkSet.size) {
+        const src = P.developers.find((d) => d.id === P.selectedId);
+        if (src) {
+          const a = unitVec(src.lat, src.lon);
+          ctx.save();
+          ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.shadowBlur = 0;
+          for (let i = 0; i < P.developers.length; i++) {
+            const d = P.developers[i];
+            if (!linkSet.has(d.id)) continue;
+            const b = unitVec(d.lat, d.lon);
+            const dot = Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
+            const omega = Math.acos(dot);
+            if (omega < 1e-3) continue;
+            const sinO = Math.sin(omega);
+            ctx.beginPath();
+            let pen = false;
+            for (let k = 0; k <= 28; k++) {
+              const t = k / 28;
+              const c1 = Math.sin((1 - t) * omega) / sinO, c2 = Math.sin(t * omega) / sinO;
+              const x = a[0] * c1 + b[0] * c2, y = a[1] * c1 + b[1] * c2, z = a[2] * c1 + b[2] * c2;
+              const xr = x * cosY + z * sinY;
+              const zr = -x * sinY + z * cosY;
+              const yr = y * cp - zr * sp;
+              const zz = y * sp + zr * cp;
+              if (zz <= 0.02) { pen = false; continue; }
+              const alt = 1 + 0.16 * Math.sin(Math.PI * t);
+              const sx = cx - R * alt * xr, sy = cy - R * alt * yr;
+              if (!pen) { ctx.moveTo(sx, sy); pen = true; } else ctx.lineTo(sx, sy);
+            }
+            ctx.strokeStyle = "rgba(45,212,191,0.16)";
+            ctx.lineWidth = 3.2 * res; ctx.stroke();
+            ctx.strokeStyle = "rgba(120,240,212,0.78)";
+            ctx.lineWidth = 1.1 * res; ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+
       // pins
       const pins = [];
-      const hov = P.hoveredId, selId = P.selectedId, dim = P.dimSet;
+      const hov = P.hoveredId, selId = P.selectedId, dim = P.dimSet, lnk = P.linkSet;
       ctx.save();
       for (let i = 0; i < P.developers.length; i++) {
         const d = P.developers[i];
@@ -178,10 +225,11 @@ const Globe = forwardRef(function Globe(props, ref) {
         const sx = cx - R * xr, sy = cy - R * yr;
         const dimmed = dim && !dim.has(d.id);
         const isSel = d.id === selId, isHov = d.id === hov;
+        const linked = lnk && lnk.has(d.id);
         pins.push({ id: d.id, x: sx, y: sy, z: zz });
         const tw = 0.5 + 0.5 * Math.sin(s.t * 0.05 + d.id * 1.7);
 
-        if (dimmed && !isSel && !isHov) {
+        if (dimmed && !isSel && !isHov && !linked) {
           ctx.shadowBlur = 0;
           ctx.fillStyle = "rgba(130,160,150," + (0.22 * zz).toFixed(3) + ")";
           ctx.beginPath(); ctx.arc(sx, sy, 1.1 * res, 0, 6.2832); ctx.fill();
@@ -203,6 +251,15 @@ const Globe = forwardRef(function Globe(props, ref) {
           ctx.shadowColor = "#f0b429"; ctx.shadowBlur = 10 * res;
           ctx.fillStyle = "#f6c651";
           ctx.beginPath(); ctx.arc(sx, sy, 2.6 * res, 0, 6.2832); ctx.fill();
+          continue;
+        }
+        if (linked && !isHov) {
+          ctx.shadowColor = "#2dd4bf"; ctx.shadowBlur = 9 * res;
+          ctx.fillStyle = "#5fe9d6";
+          ctx.beginPath(); ctx.arc(sx, sy, 2.4 * res, 0, 6.2832); ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = "rgba(45,212,191,0.55)"; ctx.lineWidth = 1 * res;
+          ctx.beginPath(); ctx.arc(sx, sy, 4.2 * res, 0, 6.2832); ctx.stroke();
           continue;
         }
         const col = isHov ? "#34e1cc" : "#3ee05a";

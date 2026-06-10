@@ -150,6 +150,18 @@ for (const [city, country, lat, lon, key, count] of CITIES) {
   }
 }
 
+// connection graph (stable, seeded): a few peers per dev, biased to a shared
+// stack, plus one far-flung link so the network spans the globe.
+for (const d of developers) {
+  const stackPeers = developers.filter((o) => o.id !== d.id && o.langs.some((l) => d.langs.includes(l)));
+  const pool = stackPeers.length ? stackPeers : developers.filter((o) => o.id !== d.id);
+  const chosen = pickN(pool, Math.min(pool.length, 2 + Math.floor(rand() * 3)));
+  const set = new Set(chosen.map((o) => o.id));
+  const far = developers[Math.floor(rand() * developers.length)];
+  if (far.id !== d.id) set.add(far.id);
+  d.connections = [...set];
+}
+
 // language totals for the filter bar
 const langCounts = {};
 for (const d of developers) for (const l of d.langs) langCounts[l] = (langCounts[l] || 0) + 1;

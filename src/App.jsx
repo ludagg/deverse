@@ -193,6 +193,7 @@ function readState() {
     activeLangs: new Set(langs),
     activeCountry: p.get("country") || null,
     selectedId: devId,
+    onlineOnly: p.get("online") === "1",
   };
 }
 
@@ -208,7 +209,10 @@ export default function App() {
   const [booted, setBooted] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [onlineOnly, setOnlineOnly] = useState(init.onlineOnly);
   const globeRef = useRef(null);
+
+  const onlineCount = useMemo(() => D.developers.filter((d) => d.status === "online").length, []);
 
   useEffect(() => { const t = setTimeout(() => setBooted(true), 1100); return () => clearTimeout(t); }, []);
 
@@ -227,9 +231,10 @@ export default function App() {
     if (activeLangs.size) p.set("langs", [...activeLangs].join(","));
     if (activeCountry) p.set("country", activeCountry);
     if (selectedId != null) p.set("dev", String(selectedId));
+    if (onlineOnly) p.set("online", "1");
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? "?" + qs : window.location.pathname);
-  }, [query, activeLangs, activeCountry, selectedId]);
+  }, [query, activeLangs, activeCountry, selectedId, onlineOnly]);
 
   const topLangs = useMemo(() => D.topLangs.slice(0, 14), []);
   const countries = useMemo(
@@ -242,9 +247,10 @@ export default function App() {
   const dimSet = useMemo(() => {
     const hasLang = activeLangs.size > 0;
     const q = query.trim().toLowerCase();
-    if (!hasLang && !activeCountry && !q) return null;
+    if (!hasLang && !activeCountry && !q && !onlineOnly) return null;
     const set = new Set();
     for (const d of D.developers) {
+      if (onlineOnly && d.status !== "online") continue;
       if (hasLang && !d.langs.some((l) => activeLangs.has(l))) continue;
       if (activeCountry && d.country !== activeCountry) continue;
       if (q) {
@@ -254,11 +260,14 @@ export default function App() {
       set.add(d.id);
     }
     return set;
-  }, [activeLangs, activeCountry, query]);
+  }, [activeLangs, activeCountry, query, onlineOnly]);
 
   const matchCount = dimSet ? dimSet.size : D.developers.length;
 
   const selected = useMemo(() => D.developers.find((d) => d.id === selectedId) || null, [selectedId]);
+
+  // the selected developer's connection network (for arcs + highlighted nodes)
+  const linkSet = useMemo(() => (selected ? new Set(selected.connections) : null), [selected]);
 
   const toggleLang = (l) => {
     setActiveLangs((prev) => { const n = new Set(prev); n.has(l) ? n.delete(l) : n.add(l); return n; });
@@ -328,6 +337,7 @@ export default function App() {
         hoveredId={hoveredId}
         selectedId={selectedId}
         dimSet={dimSet}
+        linkSet={linkSet}
         focusTarget={focusTarget}
         autoToggle={autoToggle}
       />
@@ -342,8 +352,16 @@ export default function App() {
           </div>
         </div>
         <div className="topbar-right">
-          <div className="status-pill panel">
+          <button
+            className={"online-toggle panel" + (onlineOnly ? " on" : "")}
+            aria-pressed={onlineOnly}
+            title="Show only developers who are online now"
+            onClick={() => setOnlineOnly((v) => !v)}
+          >
             <span className="dot-live" />
+            <span><b>{onlineCount}</b> online</span>
+          </button>
+          <div className="status-pill panel">
             <span><b>{D.developers.length}</b> devs</span>
             <span className="sep" />
             <span><b>{Object.keys(D.countryCounts).length}</b> countries</span>
@@ -431,7 +449,7 @@ export default function App() {
 
       <div className="legend panel">
         <div className="lg"><span className="sw" style={{ background: "var(--green)" }} />developer</div>
-        <div className="lg"><span className="sw" style={{ background: "var(--teal)" }} />hovered</div>
+        <div className="lg"><span className="sw" style={{ background: "var(--teal)" }} />connection</div>
         <div className="lg"><span className="sw" style={{ background: "var(--amber)" }} />selected</div>
       </div>
 

@@ -130,6 +130,17 @@ button { font-family: inherit; color: inherit; cursor: pointer; background: none
 
 .topbar-right { display: flex; align-items: center; gap: 12px; }
 
+/* "online now" toggle */
+.online-toggle {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 13px; font-size: 18px; color: var(--ink-2);
+}
+.online-toggle b { color: var(--green); font-weight: 400; }
+.online-toggle .dot-live { background: var(--muted); box-shadow: none; animation: none; }
+.online-toggle:hover { border-color: var(--green-dim); }
+.online-toggle.on { border-color: var(--green); color: var(--ink); }
+.online-toggle.on .dot-live { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 1.4s steps(3) infinite; }
+
 /* ---------- Sign in with GitHub ---------- */
 .gh-wrap { position: relative; }
 .gh-btn {
@@ -399,7 +410,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; background: none
   .profile { width: 280px; }
 }
 @media (max-width: 720px) {
-  .legend, .hint { display: none; }
+  .legend, .hint, .status-pill { display: none; }
   .rail-toggle { display: flex; }
   .drawer-scrim { display: block; }
 
