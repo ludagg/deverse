@@ -10,6 +10,7 @@
  * sorted largest-first so the important labels win any de-overlap pass. */
 import * as topojson from "topojson-client";
 import worldAtlas from "world-atlas/countries-110m.json";
+import { NUMERIC_TO_ISO3 } from "./iso3.js";
 
 /* Shoelace area of a lon/lat ring (sign ignored — magnitude only). */
 function ringArea(ring) {
@@ -100,7 +101,8 @@ function buildLabels() {
     const [cxLon, cyLat] = ringCentroid(best);
     const b = bbox(best);
     const size = Math.max(b.maxX - b.minX, b.maxY - b.minY);
-    labels.push({ name, lon: wrapLon(cxLon), lat: cyLat, size });
+    const iso3 = f.id != null ? NUMERIC_TO_ISO3[String(f.id).padStart(3, "0")] || null : null;
+    labels.push({ name, iso3, lon: wrapLon(cxLon), lat: cyLat, size });
   }
 
   labels.sort((a, b) => b.size - a.size);

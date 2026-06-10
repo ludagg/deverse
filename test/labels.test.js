@@ -32,6 +32,13 @@ describe("COUNTRY_LABELS", () => {
     expect(us.lat).toBeLessThan(50);
   });
 
+  it("attaches the ISO alpha-3 code used to fetch a country's regions", () => {
+    expect(byName("France").iso3).toBe("FRA");
+    expect(byName("United States of America").iso3).toBe("USA");
+    expect(byName("Japan").iso3).toBe("JPN");
+    expect(byName("Brazil").iso3).toBe("BRA");
+  });
+
   it("keeps an antimeridian-spanning country's anchor on real land", () => {
     const ru = byName("Russia");
     expect(ru).toBeTruthy();

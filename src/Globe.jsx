@@ -206,7 +206,7 @@ const Globe = forwardRef(function Globe(props, ref) {
       }
 
       // --- deep zoom: the country under the centre reveals its admin-1 regions
-      let active = null;
+      let active = null; // the centred country's label object
       if (s.zoom > DEEP_ZOOM) {
         let bestD = Infinity;
         for (const c of COUNTRY_LABELS) {
@@ -214,18 +214,19 @@ const Globe = forwardRef(function Globe(props, ref) {
           const { sx, sy, zz } = worldToScreen(v[0], v[1], v[2], s.yaw, s.pitch, cx, cy, R);
           if (zz <= 0.35) continue;
           const dd = (sx - cx) * (sx - cx) + (sy - cy) * (sy - cy);
-          if (dd < bestD) { bestD = dd; active = c.name; }
+          if (dd < bestD) { bestD = dd; active = c; }
         }
       }
-      s.activeCountry = active;
-      if (active && !s.regionRings.has(active)) {
-        s.regionRings.set(active, null); // pending — avoids re-fetching every frame
-        regionRingsFor(active)
-          .then((r) => s.regionRings.set(active, r || []))
-          .catch(() => s.regionRings.set(active, []));
+      s.activeCountry = active ? active.name : null;
+      const iso3 = active && active.iso3;
+      if (iso3 && !s.regionRings.has(iso3)) {
+        s.regionRings.set(iso3, null); // pending — avoids re-fetching every frame
+        regionRingsFor(iso3)
+          .then((r) => s.regionRings.set(iso3, r || []))
+          .catch(() => s.regionRings.set(iso3, []));
       }
-      if (active) {
-        const rr = s.regionRings.get(active);
+      if (iso3) {
+        const rr = s.regionRings.get(iso3);
         if (Array.isArray(rr) && rr.length) {
           strokeRings(rr, cx, cy, R, cosY, sinY, cp, sp);
           ctx.lineWidth = Math.max(0.8, 0.9 * res);
@@ -249,7 +250,7 @@ const Globe = forwardRef(function Globe(props, ref) {
           let fs = extent * 0.16;
           if (fs < 7 * res) continue; // too small at this zoom → stays hidden
           fs = Math.min(fs, 30 * res); // never let one label dominate the view
-          const isActive = c.name === active;
+          const isActive = c === active;
           if (isActive) fs = Math.min(fs * 1.15, 34 * res);
           ctx.font = fs + 'px "VT323", ui-monospace, monospace';
           const text = labelText(c.name);
