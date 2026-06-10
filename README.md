@@ -16,8 +16,10 @@ from a Claude Design handoff bundle as a real **Vite + React** app.
 - **3D vector globe** rendered to canvas with **real country outlines** (neon-green
   borders on a dark sphere). Borders come from bundled `world-atlas` (110m) geometry
   projected onto the sphere with back-face culling — no network call at runtime.
-- **327 seeded fictional developers** across 50 real cities, each with stack, focus,
+- **327 seeded fictional developers** across 52 real cities, each with stack, focus,
   experience, repos, stars, status, and a generated pixel-art identicon.
+- **Connection network** — selecting a developer draws great-circle arcs to their
+  peers, and an **"online now"** toggle filters the map to live developers.
 - **Pulsing pins** — hover for a tooltip, click to recenter the globe and open a
   detailed profile card.
 - **Search** (devs / cities / stacks; `Enter` selects the first match), **stack
@@ -35,6 +37,7 @@ npm run dev          # start the dev server
 npm run build        # production build → dist/
 npm run preview      # serve the production build
 npm run lint         # ESLint
+npm test             # Vitest (projection + dataset unit tests)
 npm run format       # Prettier (write)
 ```
 
@@ -44,7 +47,8 @@ npm run format       # Prettier (write)
 | --- | --- |
 | `src/data.js` | Seeded developer dataset (stable across reloads) |
 | `src/geo.js` | Builds country-outline line rings from bundled world-atlas |
-| `src/Globe.jsx` | Canvas vector-globe engine (projection, pins, interaction) |
+| `src/projection.js` | Shared sphere projection math (unit-tested) |
+| `src/Globe.jsx` | Canvas vector-globe engine (projection, pins, arcs, interaction) |
 | `src/App.jsx` | UI: top bar, GitHub auth, search, filters, profile panel |
 | `src/styles.css` | Retro pixel-art / CRT visual system |
 
