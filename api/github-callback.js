@@ -66,7 +66,7 @@ export default async function handler(req, res) {
         code,
         ...(redirectUri ? { redirect_uri: redirectUri } : {}),
       }),
-    }, 6000);
+    }, 12000);
     const tokenJson = await tokenRes.json();
     const token = tokenJson.access_token;
     if (!token) {
@@ -81,7 +81,7 @@ export default async function handler(req, res) {
           accept: "application/vnd.github+json",
           "user-agent": "devmap",
         },
-      }, 6000);
+      }, 12000);
 
     const userRes = await gh("/user");
     if (!userRes.ok) {
