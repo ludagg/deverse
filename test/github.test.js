@@ -63,6 +63,10 @@ describe("seniority", () => {
   it("never goes below 1, even with empty metrics", () => {
     expect(seniority({}).rank).toBe(1);
   });
+  it("pins the project owner (ludagg) to 5 stars regardless of metrics", () => {
+    expect(seniority({ login: "ludagg" })).toEqual({ rank: 5, tier: "Principal" });
+    expect(seniority({ handle: "@Ludagg", years: 0 }).rank).toBe(5);
+  });
 });
 
 describe("buildDeveloper", () => {

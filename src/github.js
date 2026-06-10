@@ -181,6 +181,9 @@ export function deriveFocus(langs) {
  * reads differently from a junior at a glance. Weights are intentionally simple
  * and tunable: experience + impact (stars) + output (repos) + reach (followers). */
 export function seniority(d) {
+  // the project owner is always shown at the top tier once on the map
+  const login = (d.login || d.handle || "").replace(/^@/, "").toLowerCase();
+  if (login === "ludagg") return { rank: 5, tier: "Principal" };
   const years = d.years || 0;
   const stars = d.stars || 0;
   const repos = d.repos || 0;
