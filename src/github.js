@@ -175,6 +175,26 @@ export function deriveFocus(langs) {
   return langs.length ? "Polyglot" : "Open source";
 }
 
+/* ---------------- Seniority rating ---------------- */
+
+/* A transparent 1–5 "seniority" score from a developer's metrics, so a senior
+ * reads differently from a junior at a glance. Weights are intentionally simple
+ * and tunable: experience + impact (stars) + output (repos) + reach (followers). */
+export function seniority(d) {
+  const years = d.years || 0;
+  const stars = d.stars || 0;
+  const repos = d.repos || 0;
+  const followers = d.followers || 0;
+  let score = 0;
+  score += Math.min(2, (years / 8) * 2); // experience → up to 2
+  score += Math.min(2, (Math.log10(stars + 1) / 4) * 2); // impact, ~10k★ = full → up to 2
+  score += Math.min(0.6, repos / 100); // output → up to 0.6
+  score += Math.min(0.6, (Math.log10(followers + 1) / 4) * 0.6); // reach → up to 0.6
+  const rank = Math.max(1, Math.min(5, Math.round(score)));
+  const tier = ["", "Newcomer", "Junior", "Mid-level", "Senior", "Principal"][rank];
+  return { rank, tier };
+}
+
 /* ---------------- Geocoding (Nominatim / OpenStreetMap) ---------------- */
 
 function readGeoCache() {

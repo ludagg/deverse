@@ -157,7 +157,7 @@ const Globe = forwardRef(function Globe(props, ref) {
         ctx.strokeStyle = "rgba(57,211,83,0.13)";
         ctx.stroke();
         ctx.lineWidth = Math.max(1, 1.05 * res);
-        ctx.strokeStyle = "rgba(74,224,110,0.92)";
+        ctx.strokeStyle = "rgba(74,224,110,0.6)";
         ctx.stroke();
       }
       ctx.restore();
@@ -268,12 +268,13 @@ const Globe = forwardRef(function Globe(props, ref) {
           ctx.beginPath(); ctx.arc(sx, sy, 4.2 * res, 0, 6.2832); ctx.stroke();
           continue;
         }
-        const col = isHov ? "#34e1cc" : "#3ee05a";
-        ctx.shadowColor = isHov ? "#2dd4bf" : "#39d353";
-        ctx.shadowBlur = (isHov ? 12 : 7) * res;
-        ctx.globalAlpha = isHov ? 1 : 0.6 + 0.4 * tw;
+        // regular dev pins are cyan so they read clearly against the green map
+        const col = isHov ? "#a5f3fc" : "#22d3ee";
+        ctx.shadowColor = isHov ? "#67e8f9" : "#22d3ee";
+        ctx.shadowBlur = (isHov ? 13 : 8) * res;
+        ctx.globalAlpha = isHov ? 1 : 0.62 + 0.38 * tw;
         ctx.fillStyle = col;
-        ctx.beginPath(); ctx.arc(sx, sy, (isHov ? 3.1 : 2.1) * res, 0, 6.2832); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx, sy, (isHov ? 3.2 : 2.2) * res, 0, 6.2832); ctx.fill();
         ctx.globalAlpha = 1;
       }
       ctx.restore();

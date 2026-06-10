@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeProfile, deriveFocus, buildDeveloper } from "../src/github.js";
+import { normalizeProfile, deriveFocus, buildDeveloper, seniority } from "../src/github.js";
 
 describe("normalizeProfile", () => {
   const user = {
@@ -48,6 +48,20 @@ describe("deriveFocus", () => {
   it("falls back sensibly", () => {
     expect(deriveFocus(["Brainfuck"])).toBe("Polyglot");
     expect(deriveFocus([])).toBe("Open source");
+  });
+});
+
+describe("seniority", () => {
+  it("rates within 1..5 and ranks a heavyweight above a newcomer", () => {
+    const junior = seniority({ years: 1, stars: 2, repos: 3, followers: 1 });
+    const principal = seniority({ years: 15, stars: 40000, repos: 90, followers: 20000 });
+    expect(junior.rank).toBeGreaterThanOrEqual(1);
+    expect(principal.rank).toBe(5);
+    expect(principal.rank).toBeGreaterThan(junior.rank);
+    expect(principal.tier).toBe("Principal");
+  });
+  it("never goes below 1, even with empty metrics", () => {
+    expect(seniority({}).rank).toBe(1);
   });
 });
 

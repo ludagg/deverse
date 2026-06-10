@@ -14,6 +14,7 @@
   --teal-dim: #176d63;
   --amber: #f0b429;
   --magenta: #e84d8a;
+  --cyan: #22d3ee;
 
   --ink: #d6f0df;       /* primary text, greenish white */
   --ink-2: #8aa79a;     /* secondary */
@@ -36,6 +37,7 @@ html, body {
   -webkit-font-smoothing: none;
   font-smooth: never;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 button { font-family: inherit; color: inherit; cursor: pointer; background: none; border: none; }
@@ -58,7 +60,11 @@ button { font-family: inherit; color: inherit; cursor: pointer; background: none
 
 /* globe canvas fills the stage */
 .globe-stage { position: absolute; inset: 0; }
-.globe-canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
+.globe-canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab;
+  touch-action: none; /* let the globe own drag gestures instead of the browser scrolling */
+  -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+}
 .globe-canvas.grabbing { cursor: grabbing; }
 
 /* ---------- CRT overlays ---------- */
@@ -279,6 +285,27 @@ a.gh-menu-item { text-decoration: none; display: block; }
 .country-row .meta { display: flex; align-items: center; gap: 8px; }
 .country-row .cn { color: var(--muted); font-size: 15px; min-width: 22px; text-align: right; }
 
+/* results list (shown in the rail when a search/filter is active) */
+.results { display: flex; flex-direction: column; gap: 2px; }
+.result-row {
+  display: flex; align-items: center; gap: 9px; text-align: left;
+  padding: 7px 8px; border-left: 3px solid transparent;
+}
+.result-row:hover, .result-row.on { background: var(--panel-2); border-left-color: var(--cyan); }
+.result-row .avatar { width: 20px; height: 20px; flex: 0 0 20px; border-width: 1px; }
+.result-row .rmain { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.result-row .rn { font-size: 18px; color: var(--ink); line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.result-row .rsub { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.result-row.real .rn { color: var(--magenta); }
+.result-row .rstars { font-size: 13px; color: var(--amber); letter-spacing: 1px; flex: 0 0 auto; }
+.result-empty { font-size: 17px; color: var(--muted); padding: 8px; }
+
+/* seniority rating (★) */
+.rating { display: flex; align-items: center; gap: 8px; }
+.stars { font-size: 18px; letter-spacing: 2px; color: var(--amber); }
+.stars .off { color: var(--faint); }
+.tier { font-size: 16px; color: var(--ink-2); }
+
 /* ---------- Mobile drawer toggle ---------- */
 .rail-toggle {
   display: none;
@@ -434,10 +461,26 @@ img.avatar { object-fit: cover; }
   .rail-toggle { display: flex; }
   .drawer-scrim { display: block; }
 
+  /* tighter top bar so everything fits a phone width */
+  .topbar { padding: 9px 10px; gap: 8px; }
+  .brand { gap: 8px; }
+  .brand .mark { width: 26px; height: 26px; }
+  .brand .mark::before { width: 9px; height: 9px; }
+  .brand h1 { font-size: 11px; letter-spacing: 1px; }
+  .brand .sub { display: none; }
+  .topbar-right { gap: 8px; }
+  .online-toggle { padding: 7px 10px; font-size: 16px; }
+
+  /* GitHub button collapses to its icon to save room */
+  .gh-btn { padding: 8px 10px; }
+  .gh-btn > span { display: none; }
+  .gh-user { padding: 5px 8px 5px 6px; }
+  .gh-handle { max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
   /* the rail becomes a slide-in drawer */
   .rail {
-    top: 0; bottom: 0; left: 0; width: 280px; max-width: 86vw;
-    padding: 64px 12px 16px;
+    top: 0; bottom: 0; left: 0; width: 300px; max-width: 88vw;
+    padding: 58px 12px 16px;
     background: rgba(6,9,16,.97);
     border-right: 2px solid var(--line);
     transform: translateX(-110%);
@@ -445,6 +488,12 @@ img.avatar { object-fit: cover; }
     z-index: 55;
   }
   .rail.open { transform: none; }
+  .rail-toggle { top: 56px; }
 
-  .profile { left: 12px; right: 12px; width: auto; top: auto; bottom: 64px; }
+  .profile { left: 12px; right: 12px; width: auto; top: auto; bottom: 66px; max-height: 64vh; overflow: auto; }
+
+  /* keep the bottom controls on one row */
+  .controls { gap: 4px; padding: 5px; bottom: 12px; }
+  .ctrl { width: 30px; height: 30px; font-size: 16px; }
+  .ctrl.wide { padding: 0 8px; font-size: 13px; }
 }

@@ -9,6 +9,7 @@ import {
   exchangeOAuthCode,
   fetchPublicProfile,
   buildDeveloper,
+  seniority,
 } from "./github.js";
 
 /* ---- pixel identicon avatar ---- */
@@ -40,6 +41,15 @@ function Avatar({ d, size = 64 }) {
     return <img className="avatar pix" src={d.avatarUrl} alt={d.name} width={size} height={size} style={{ width: size, height: size }} />;
   }
   return <PixelAvatar seed={d.avatar} size={size} />;
+}
+
+/* ---- seniority stars ---- */
+function Stars({ rank }) {
+  return (
+    <span className="stars" aria-label={rank + " out of 5"}>
+      {[1, 2, 3, 4, 5].map((i) => <span key={i} className={i <= rank ? "" : "off"}>★</span>)}
+    </span>
+  );
 }
 
 /* ---- GitHub mark ---- */
@@ -209,6 +219,10 @@ function Profile({ d, onClose }) {
       </div>
       <div className="pbody">
         <div className="field">
+          <div className="lab">Level</div>
+          <div className="rating"><Stars rank={seniority(d).rank} /> <span className="tier">{seniority(d).tier}</span></div>
+        </div>
+        <div className="field">
           <div className="lab">Focus</div>
           <div className="val">{d.focus}</div>
         </div>
@@ -332,6 +346,9 @@ export default function App() {
   }, [activeLangs, activeCountry, query, onlineOnly, developers]);
 
   const matchCount = dimSet ? dimSet.size : developers.length;
+
+  // developers passing the active filters, as a tappable list (mobile-friendly)
+  const results = useMemo(() => (dimSet ? developers.filter((d) => dimSet.has(d.id)) : []), [dimSet, developers]);
 
   const selected = useMemo(() => developers.find((d) => d.id === selectedId) || null, [selectedId, developers]);
 
@@ -495,21 +512,49 @@ export default function App() {
         </div>
 
         <div className="panel card-pad" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-          <div className="card-head">
-            <span className="panel-title">By country</span>
-            <span className="panel-title" style={{ color: "var(--green)" }}>{matchCount} shown</span>
-          </div>
-          <div className="country-list scroll" style={{ flex: 1 }}>
-            {countries.map(([c, n]) => (
-              <button key={c} className={"country-row" + (activeCountry === c ? " on" : "")} onClick={() => selectCountry(c)}>
-                <span>{c}</span>
-                <span className="meta">
-                  <span className="bar" style={{ width: 8 + (n / maxCountry) * 56 }} />
-                  <span className="cn">{n}</span>
-                </span>
-              </button>
-            ))}
-          </div>
+          {dimSet ? (
+            <>
+              <div className="card-head">
+                <span className="panel-title">Results</span>
+                <span className="panel-title" style={{ color: "var(--green)" }}>{matchCount} found</span>
+              </div>
+              <div className="results scroll" style={{ flex: 1 }}>
+                {results.length === 0 && <div className="result-empty">No developers match.</div>}
+                {results.slice(0, 150).map((d) => (
+                  <button
+                    key={d.id}
+                    className={"result-row" + (d.real ? " real" : "") + (d.id === selectedId ? " on" : "")}
+                    onClick={() => { handleSelect(d.id); setRailOpen(false); }}
+                  >
+                    <Avatar d={d} size={20} />
+                    <span className="rmain">
+                      <span className="rn">{d.name}</span>
+                      <span className="rsub">{d.handle} · {d.city}</span>
+                    </span>
+                    <span className="rstars" title={seniority(d).tier}>{"★".repeat(seniority(d).rank)}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="card-head">
+                <span className="panel-title">By country</span>
+                <span className="panel-title" style={{ color: "var(--green)" }}>{matchCount} shown</span>
+              </div>
+              <div className="country-list scroll" style={{ flex: 1 }}>
+                {countries.map(([c, n]) => (
+                  <button key={c} className={"country-row" + (activeCountry === c ? " on" : "")} onClick={() => selectCountry(c)}>
+                    <span>{c}</span>
+                    <span className="meta">
+                      <span className="bar" style={{ width: 8 + (n / maxCountry) * 56 }} />
+                      <span className="cn">{n}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -532,7 +577,7 @@ export default function App() {
       <div className="hint">drag to rotate · scroll to zoom · <b>← →</b> browse devs · <b>click a pin</b> for the profile</div>
 
       <div className="legend panel">
-        <div className="lg"><span className="sw" style={{ background: "var(--green)" }} />developer</div>
+        <div className="lg"><span className="sw" style={{ background: "var(--cyan)" }} />developer</div>
         <div className="lg"><span className="sw" style={{ background: "var(--teal)" }} />connection</div>
         <div className="lg"><span className="sw" style={{ background: "var(--amber)" }} />selected</div>
         <div className="lg"><span className="sw" style={{ background: "var(--magenta)" }} />you (GitHub)</div>
