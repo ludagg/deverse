@@ -10,10 +10,25 @@ import postgres from "postgres";
 
 let sql = null;
 
+/* Resolve a Postgres connection string from the common env-var names. The
+ * Vercel↔Supabase / Vercel Postgres integrations inject POSTGRES_URL etc.
+ * rather than DATABASE_URL, so accept all of them (pooled URLs first). */
+export function connString() {
+  return (
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.SUPABASE_DB_URL ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    null
+  );
+}
+
 export function db() {
-  if (!process.env.DATABASE_URL) return null;
+  const url = connString();
+  if (!url) return null;
   if (!sql) {
-    sql = postgres(process.env.DATABASE_URL, {
+    sql = postgres(url, {
       ssl: "require",
       prepare: false,
       max: 1,

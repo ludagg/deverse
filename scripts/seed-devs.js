@@ -12,7 +12,7 @@
 
 import process from "node:process";
 import D from "../src/data.js";
-import { db, upsertDeveloper } from "../api/_db.js";
+import { db, upsertDeveloper, connString } from "../api/_db.js";
 
 const TOKEN = process.env.GITHUB_TOKEN;
 const PER_CITY = Number(process.env.SEED_PER_CITY || 6);
@@ -22,8 +22,8 @@ if (!TOKEN) {
   console.error("Set GITHUB_TOKEN (a read-only Personal Access Token).");
   process.exit(1);
 }
-if (!process.env.DATABASE_URL) {
-  console.error("Set DATABASE_URL (your Postgres connection string).");
+if (!connString()) {
+  console.error("Set DATABASE_URL (or POSTGRES_URL) — your Postgres connection string.");
   process.exit(1);
 }
 

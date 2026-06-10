@@ -16,7 +16,9 @@ function devApi(env) {
       // Only set when present — assigning undefined would coerce to "undefined".
       if (env.GITHUB_CLIENT_ID && !process.env.GITHUB_CLIENT_ID) process.env.GITHUB_CLIENT_ID = env.GITHUB_CLIENT_ID;
       if (env.GITHUB_CLIENT_SECRET && !process.env.GITHUB_CLIENT_SECRET) process.env.GITHUB_CLIENT_SECRET = env.GITHUB_CLIENT_SECRET;
-      if (env.DATABASE_URL && !process.env.DATABASE_URL) process.env.DATABASE_URL = env.DATABASE_URL;
+      for (const k of ["DATABASE_URL", "POSTGRES_URL", "POSTGRES_PRISMA_URL", "POSTGRES_URL_NON_POOLING", "SUPABASE_DB_URL"]) {
+        if (env[k] && !process.env[k]) process.env[k] = env[k];
+      }
       const route = (path, file) =>
         server.middlewares.use(path, async (req, res, next) => {
           try {
