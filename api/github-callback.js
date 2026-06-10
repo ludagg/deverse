@@ -8,6 +8,8 @@
 
 import { db, upsertDeveloper } from "./_db.js";
 import { geocode, geocodeIp } from "./_geo.js";
+import { fetchT } from "./_http.js";
+import { rateLimit } from "./_limit.js";
 
 const GH = "https://api.github.com";
 
@@ -18,6 +20,16 @@ export default async function handler(req, res) {
     res.statusCode = 405;
     res.setHeader("Allow", "POST");
     return res.end(JSON.stringify({ error: "Method not allowed" }));
+  }
+
+  // throttle this expensive path (GitHub + geocoder + DB) per client, so it
+  // can't be spammed into exhausting quotas or the database connection
+  const ip = clientIp(req);
+  const rl = rateLimit("cb:" + ip, { limit: 12, windowMs: 60_000 });
+  if (!rl.ok) {
+    res.statusCode = 429;
+    res.setHeader("Retry-After", String(rl.retryAfter));
+    return res.end(JSON.stringify({ error: "Too many sign-in attempts — please wait a moment." }));
   }
 
   const CLIENT_ID = process.env.GITHUB_CLIENT_ID;
@@ -34,15 +46,18 @@ export default async function handler(req, res) {
     code = body.code || "";
     redirectUri = body.redirect_uri || "";
   } catch {
-    /* fall through to the missing-code error below */
+    /* fall through to the validation error below */
   }
-  if (!code) {
+  // validate inputs: a GitHub code is a short opaque token; reject anything
+  // that isn't, and cap the redirect_uri length (it's checked by GitHub too)
+  if (typeof code !== "string" || !/^[A-Za-z0-9_-]{8,512}$/.test(code)) {
     res.statusCode = 400;
-    return res.end(JSON.stringify({ error: "Missing authorization code." }));
+    return res.end(JSON.stringify({ error: "Missing or invalid authorization code." }));
   }
+  if (typeof redirectUri !== "string" || redirectUri.length > 512) redirectUri = "";
 
   try {
-    const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+    const tokenRes = await fetchT("https://github.com/login/oauth/access_token", {
       method: "POST",
       headers: { "content-type": "application/json", accept: "application/json" },
       body: JSON.stringify({
@@ -51,7 +66,7 @@ export default async function handler(req, res) {
         code,
         ...(redirectUri ? { redirect_uri: redirectUri } : {}),
       }),
-    });
+    }, 6000);
     const tokenJson = await tokenRes.json();
     const token = tokenJson.access_token;
     if (!token) {
@@ -60,13 +75,13 @@ export default async function handler(req, res) {
     }
 
     const gh = (path) =>
-      fetch(GH + path, {
+      fetchT(GH + path, {
         headers: {
           authorization: "Bearer " + token,
           accept: "application/vnd.github+json",
-          "user-agent": "deverse",
+          "user-agent": "devmap",
         },
-      });
+      }, 6000);
 
     const userRes = await gh("/user");
     if (!userRes.ok) {
@@ -84,7 +99,7 @@ export default async function handler(req, res) {
     // geocode), fall back to the sign-in IP so the developer still gets pinned
     // and persisted — the map doesn't stay empty for location-less profiles
     let geo = await geocode(profile.location);
-    if (!geo) geo = await geocodeIp(clientIp(req));
+    if (!geo) geo = await geocodeIp(ip);
     const dev = toDeveloper(profile, geo);
 
     // persist & share: the signed-in user shows up on everyone's map
@@ -132,11 +147,19 @@ function clientIp(req) {
   return xff || req.headers["x-real-ip"] || (req.socket && req.socket.remoteAddress) || "";
 }
 
-/* Read and JSON-parse the request body (raw Node stream). */
+/* Read and JSON-parse the request body (raw Node stream), capped at 8 KB so a
+ * giant payload can't be used to exhaust the function's memory. */
 function readJson(req) {
+  const MAX = 8 * 1024;
   return new Promise((resolve, reject) => {
     let data = "";
-    req.on("data", (c) => (data += c));
+    req.on("data", (c) => {
+      data += c;
+      if (data.length > MAX) {
+        reject(new Error("payload too large"));
+        req.destroy();
+      }
+    });
     req.on("end", () => {
       try {
         resolve(data ? JSON.parse(data) : {});
