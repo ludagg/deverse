@@ -206,6 +206,7 @@ const Globe = forwardRef(function Globe(props, ref) {
       ctx.save();
       for (let i = 0; i < P.developers.length; i++) {
         const d = P.developers[i];
+        if (d.lat == null || d.lon == null) continue; // unlocated real users
         const v = lonLatToVec(d.lat, d.lon);
         const { sx, sy, zz } = worldToScreen(v[0], v[1], v[2], s.yaw, s.pitch, cx, cy, R);
         if (zz <= 0.03) continue;
@@ -214,6 +215,25 @@ const Globe = forwardRef(function Globe(props, ref) {
         const linked = lnk && lnk.has(d.id);
         pins.push({ id: d.id, x: sx, y: sy, z: zz });
         const tw = 0.5 + 0.5 * Math.sin(s.t * 0.05 + d.id * 1.7);
+
+        // real signed-in user — a distinct magenta diamond that ignores dimming
+        if (d.real) {
+          const rr = (isHov ? 4 : 3.4) * res;
+          ctx.shadowColor = "#e84d8a"; ctx.shadowBlur = (isHov ? 16 : 11) * res;
+          ctx.fillStyle = isHov ? "#ff79ac" : "#e84d8a";
+          ctx.beginPath();
+          ctx.moveTo(sx, sy - rr); ctx.lineTo(sx + rr, sy); ctx.lineTo(sx, sy + rr); ctx.lineTo(sx - rr, sy);
+          ctx.closePath(); ctx.fill();
+          ctx.shadowBlur = 0;
+          const pr = 6 * res + (s.t % 70 < 35 ? 2 * res : 0);
+          ctx.strokeStyle = "rgba(232,77,138,0.5)"; ctx.lineWidth = 1 * res;
+          ctx.beginPath(); ctx.arc(sx, sy, pr, 0, 6.2832); ctx.stroke();
+          if (isSel) {
+            ctx.strokeStyle = "rgba(240,180,41,0.95)"; ctx.lineWidth = 1.6 * res;
+            ctx.beginPath(); ctx.arc(sx, sy, pr + 4 * res, 0, 6.2832); ctx.stroke();
+          }
+          continue;
+        }
 
         if (dimmed && !isSel && !isHov && !linked) {
           ctx.shadowBlur = 0;
@@ -349,8 +369,9 @@ const Globe = forwardRef(function Globe(props, ref) {
         aria-label="Interactive developer globe. Drag to rotate, scroll to zoom, use the left and right arrow keys to browse developers."
       />
       {tip && (
-        <div className="tip" style={{ left: tip.x, top: tip.y }}>
+        <div className={"tip" + (tip.d.real ? " real" : "")} style={{ left: tip.x, top: tip.y }}>
           <span className="h">{tip.d.name}</span> · {tip.d.city}
+          {tip.d.real && <span className="tip-you"> · you</span>}
         </div>
       )}
     </div>

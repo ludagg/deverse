@@ -215,6 +215,12 @@ button { font-family: inherit; color: inherit; cursor: pointer; background: none
 .gh-authorize:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 var(--bg-deep); }
 .gh-authorize.busy { background: var(--green-dim); color: var(--ink); cursor: progress; }
 .gh-foot { margin-top: 14px; font-size: 14px; color: var(--muted); text-align: center; }
+.gh-err {
+  margin-top: 14px; padding: 8px 10px; font-size: 16px; color: var(--magenta);
+  background: rgba(232,77,138,.08); border: 1px solid rgba(232,77,138,.4);
+}
+.gh-btn:disabled { opacity: .85; cursor: progress; }
+a.gh-menu-item { text-decoration: none; display: block; }
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
 
 /* ---------- Left rail (search + filters) ---------- */
@@ -303,6 +309,9 @@ button { font-family: inherit; color: inherit; cursor: pointer; background: none
   content: ""; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%);
   width: 6px; height: 6px; background: var(--green);
 }
+.tip.real { border-color: var(--magenta); }
+.tip.real::after { background: var(--magenta); }
+.tip-you { color: var(--magenta); }
 
 /* ---------- Profile panel ---------- */
 .profile {
@@ -319,7 +328,18 @@ button { font-family: inherit; color: inherit; cursor: pointer; background: none
   width: 64px; height: 64px; flex: 0 0 64px;
   border: 2px solid var(--line); background: var(--bg-deep);
 }
-.profile .nm { font-family: var(--pico); font-size: 11px; line-height: 1.5; color: var(--ink); }
+img.avatar { object-fit: cover; }
+.profile .ph img.avatar { border-color: var(--teal-dim); }
+.profile .nm {
+  font-family: var(--pico); font-size: 11px; line-height: 1.5; color: var(--ink);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.real-badge {
+  font-family: var(--term); font-size: 13px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--magenta); border: 1px solid rgba(232,77,138,.5);
+  padding: 1px 6px; background: rgba(232,77,138,.08);
+}
+.muted-loc { color: var(--muted); font-style: italic; }
 .profile .hd { font-size: 19px; color: var(--teal); margin-top: 4px; }
 .profile .loc { font-size: 18px; color: var(--ink-2); margin-top: 2px; display:flex; align-items:center; gap:6px;}
 .profile .close {

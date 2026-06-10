@@ -6,7 +6,21 @@ import reactRefresh from "eslint-plugin-react-refresh";
 export default [
   { ignores: ["dist", "node_modules"] },
   {
+    // serverless functions and build config run on Node, not in the browser
+    files: ["api/**/*.js", "*.config.js"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: { ...globals.node },
+      parserOptions: { ecmaVersion: "latest", sourceType: "module" },
+    },
+    rules: {
+      ...js.configs.recommended.rules,
+      "no-unused-vars": ["error", { varsIgnorePattern: "^[A-Z_]" }],
+    },
+  },
+  {
     files: ["**/*.{js,jsx}"],
+    ignores: ["api/**/*.js", "*.config.js"],
     languageOptions: {
       ecmaVersion: 2022,
       globals: { ...globals.browser },

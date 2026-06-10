@@ -35,10 +35,19 @@ Status of the work to "finish" the app. ✅ done · ⬜ open.
 - ⬜ **Performance**: the bundle embeds world-atlas 110m (~280 kB / ~100 kB
   gzip) — consider lazy-loading or a lighter outline mask.
 
-## ⬜ Phase 3 — Real data (needs product decisions)
-Turns the demo into a product. Open questions before starting:
-- **Real GitHub OAuth** to replace the mocked flow → needs a registered OAuth
-  app + a client secret, so a small backend or serverless function.
-- Fetch real profile / repos / languages from the GitHub API.
-- Geocode the developer's `location` to lat/lon.
-- Persisted, editable profiles → backend vs. fully client-side?
+## ✅ Phase 3 — Real data
+Turns the demo into a product. The mocked sign-in is gone.
+- ✅ **Real GitHub OAuth** (authorization-code) via a Vercel serverless function
+  (`api/github-callback.js`) that holds the client secret and exchanges the
+  code server-side — the access token never reaches the browser. Enabled by
+  setting `VITE_GITHUB_CLIENT_ID` (build) + `GITHUB_CLIENT_ID` /
+  `GITHUB_CLIENT_SECRET` (server); see `.env.example`.
+- ✅ **Public-API fallback**: when OAuth isn't configured, the modal pulls a
+  real public profile by username (no backend) so the feature works immediately.
+- ✅ Real **profile / repos / top languages / stars** fetched from the GitHub API.
+- ✅ **Geocoding** of the free-text `location` via Nominatim/OpenStreetMap, cached
+  in `localStorage`; unlocated users still get a profile, just no pin.
+- ✅ The signed-in user is pinned on the globe (distinct **magenta** marker)
+  *on top of* the seeded fiction, and persists across reloads.
+- ⬜ Shared, editable profiles for *other* real users → needs a datastore
+  (today only the signed-in user is real; the rest stay seeded).

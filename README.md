@@ -24,8 +24,11 @@ from a Claude Design handoff bundle as a real **Vite + React** app.
   detailed profile card.
 - **Search** (devs / cities / stacks; `Enter` selects the first match), **stack
   filters** (non-matching pins dim), and a clickable **by-country** list.
-- **Sign in with GitHub** — GitHub-only signup via a mocked OAuth flow, with a
-  persistent connected state.
+- **Sign in with GitHub (real data)** — real OAuth via a serverless function, or
+  a public-API-by-username fallback. Your actual profile, repos, top languages
+  and stars are pulled from GitHub, your `location` is geocoded, and you're
+  pinned on the globe with a distinct **magenta** marker. See
+  [GitHub sign-in](#github-sign-in).
 - Full CRT chrome: scanlines, vignette, grain, flicker, boot screen, and the
   Press Start 2P + VT323 fonts.
 
@@ -46,11 +49,41 @@ npm run format       # Prettier (write)
 | File | Role |
 | --- | --- |
 | `src/data.js` | Seeded developer dataset (stable across reloads) |
+| `src/github.js` | Real GitHub integration: OAuth, public-API fetch, geocoding |
+| `api/github-callback.js` | Serverless OAuth token exchange (Vercel; secret stays server-side) |
 | `src/geo.js` | Builds country-outline line rings from bundled world-atlas |
 | `src/projection.js` | Shared sphere projection math (unit-tested) |
 | `src/Globe.jsx` | Canvas vector-globe engine (projection, pins, arcs, interaction) |
 | `src/App.jsx` | UI: top bar, GitHub auth, search, filters, profile panel |
 | `src/styles.css` | Retro pixel-art / CRT visual system |
+
+## GitHub sign-in
+
+DEVERSE pulls **real** GitHub data. There are two modes:
+
+- **OAuth (recommended for production).** Create a GitHub OAuth App at
+  <https://github.com/settings/developers> → *New OAuth App*, with the
+  *Authorization callback URL* set to your origin (e.g. `http://localhost:5173/`
+  for dev, `https://<your-app>.vercel.app/` for prod). Then set the variables
+  from [`.env.example`](.env.example):
+  - `VITE_GITHUB_CLIENT_ID` — public, baked into the build; switches the button
+    to the real OAuth redirect.
+  - `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — server-only, read by the
+    serverless function `api/github-callback.js`, which exchanges the OAuth code
+    for a token. **The token never reaches the browser.**
+
+  On Vercel, add the same three variables under *Project → Settings →
+  Environment Variables*. The `/api` function is detected automatically.
+
+- **Public-API fallback (zero config).** With no `VITE_GITHUB_CLIENT_ID`, the
+  sign-in modal asks for a username and fetches that account's *public* profile,
+  repos and languages directly from `api.github.com` — no backend, no secret
+  (rate-limited to 60 requests/hour per IP).
+
+Either way, the free-text `location` is geocoded via
+[Nominatim/OpenStreetMap](https://nominatim.org/) (cached in `localStorage`) and
+the developer is pinned on the globe. `npm run dev` runs the serverless function
+locally through a small Vite middleware, so OAuth works end-to-end on localhost.
 
 ## Contributing
 

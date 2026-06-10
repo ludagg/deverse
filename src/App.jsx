@@ -2,6 +2,14 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import D from "./data.js";
 import Globe from "./Globe.jsx";
+import {
+  oauthConfigured,
+  beginOAuth,
+  pendingOAuthCode,
+  exchangeOAuthCode,
+  fetchPublicProfile,
+  buildDeveloper,
+} from "./github.js";
 
 /* ---- pixel identicon avatar ---- */
 function PixelAvatar({ seed, size = 64 }) {
@@ -26,6 +34,14 @@ function PixelAvatar({ seed, size = 64 }) {
   return <canvas ref={ref} className="avatar pix" style={{ width: size, height: size }} />;
 }
 
+/* Real users carry a GitHub avatar URL; everyone else gets a generated identicon. */
+function Avatar({ d, size = 64 }) {
+  if (d.avatarUrl) {
+    return <img className="avatar pix" src={d.avatarUrl} alt={d.name} width={size} height={size} style={{ width: size, height: size }} />;
+  }
+  return <PixelAvatar seed={d.avatar} size={size} />;
+}
+
 /* ---- GitHub mark ---- */
 function GitHubMark({ size = 16 }) {
   return (
@@ -35,53 +51,81 @@ function GitHubMark({ size = 16 }) {
   );
 }
 
-function strHash(str) {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return h >>> 0;
-}
-
-/* ---- Sign in with GitHub (mocked OAuth flow) ---- */
-function GitHubAuth() {
-  const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("deverse_gh_user") || "null"); } catch { return null; }
-  });
+/* ---- Sign in with GitHub (real OAuth, with a public-API fallback) ---- */
+function GitHubAuth({ me, onAuthed, onSignOut, onShowProfile }) {
   const [modal, setModal] = useState(false);
   const [menu, setMenu] = useState(false);
   const [name, setName] = useState("");
-  const [authing, setAuthing] = useState(false);
+  const [busy, setBusy] = useState(null); // label shown while a request is in flight
+  const [error, setError] = useState("");
+  const didRedirect = useRef(false);
 
+  // If we just came back from GitHub's consent screen, finish the OAuth exchange.
   useEffect(() => {
-    if (user) localStorage.setItem("deverse_gh_user", JSON.stringify(user));
-    else localStorage.removeItem("deverse_gh_user");
-  }, [user]);
+    if (didRedirect.current) return;
+    didRedirect.current = true;
+    const code = pendingOAuthCode();
+    if (!code) return;
+    setBusy("Completing sign-in…");
+    (async () => {
+      try {
+        const profile = await exchangeOAuthCode(code);
+        onAuthed(await buildDeveloper(profile));
+      } catch (e) {
+        setError(e.message || "Sign-in failed.");
+        setModal(true);
+      } finally {
+        setBusy(null);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const open = () => { setName(""); setAuthing(false); setModal(true); };
-  const authorize = () => {
-    const handle = (name.trim().replace(/^@/, "") || "octodev").toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 20);
-    setAuthing(true);
-    setTimeout(() => {
-      setUser({ handle, seed: strHash(handle) });
-      setAuthing(false);
-      setModal(false);
-    }, 1100);
+  const startSignIn = () => {
+    setError("");
+    if (oauthConfigured()) {
+      setBusy("Redirecting to GitHub…");
+      beginOAuth();
+      return;
+    }
+    // no OAuth app configured → pull the public profile by username instead
+    setName("");
+    setModal(true);
   };
-  const signOut = () => { setUser(null); setMenu(false); };
 
-  if (user) {
+  const submitUsername = async () => {
+    const login = name.trim().replace(/^@/, "").replace(/\s+/g, "");
+    if (!login) return;
+    setError("");
+    setBusy("Fetching profile…");
+    try {
+      const profile = await fetchPublicProfile(login);
+      onAuthed(await buildDeveloper(profile));
+      setModal(false);
+    } catch (e) {
+      setError(e.message || "Could not load that profile.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const signOut = () => { setMenu(false); onSignOut(); };
+
+  if (me) {
     return (
       <div className="gh-wrap">
         <button className="gh-user panel" onClick={() => setMenu((v) => !v)}>
-          <PixelAvatar seed={user.seed} size={22} />
-          <span className="gh-handle">@{user.handle}</span>
+          <Avatar d={me} size={22} />
+          <span className="gh-handle">@{me.login}</span>
           <span className="gh-caret">▾</span>
         </button>
         {menu && (
           <div className="gh-menu panel">
             <div className="gh-menu-head">
-              <span className="gh-dot online" /> on the map
+              <span className={"gh-dot " + (me.located ? "online" : "")} /> {me.located ? "on the map" : "location not set"}
             </div>
-            <button className="gh-menu-item" onClick={() => setMenu(false)}>My profile</button>
+            <button className="gh-menu-item" onClick={() => { setMenu(false); onShowProfile(); }}>My profile</button>
+            <a className="gh-menu-item" href={me.htmlUrl} target="_blank" rel="noreferrer" onClick={() => setMenu(false)}>Open on GitHub ↗</a>
             <button className="gh-menu-item danger" onClick={signOut}>Disconnect</button>
           </div>
         )}
@@ -91,46 +135,48 @@ function GitHubAuth() {
 
   return (
     <>
-      <button className="gh-btn" onClick={open}>
+      <button className="gh-btn" onClick={startSignIn} disabled={!!busy}>
         <GitHubMark size={16} />
-        <span>Sign in with GitHub</span>
+        <span>{busy || "Sign in with GitHub"}</span>
       </button>
       {modal && (
-        <div className="modal-overlay" onClick={() => !authing && setModal(false)}>
+        <div className="modal-overlay" onClick={() => !busy && setModal(false)}>
           <div
             className="gh-modal panel"
             role="dialog"
             aria-modal="true"
             aria-labelledby="gh-modal-title"
             onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => { if (e.key === "Escape" && !authing) setModal(false); }}
+            onKeyDown={(e) => { if (e.key === "Escape" && !busy) setModal(false); }}
           >
             <div className="gh-modal-top">
               <GitHubMark size={26} />
-              <button className="gh-x" aria-label="Close" onClick={() => setModal(false)} disabled={authing}>×</button>
+              <button className="gh-x" aria-label="Close" onClick={() => setModal(false)} disabled={!!busy}>×</button>
             </div>
-            <div className="gh-modal-title" id="gh-modal-title">Authorize <b>DEVERSE</b></div>
-            <div className="gh-modal-sub">Join the map — sign up is GitHub-only.</div>
+            <div className="gh-modal-title" id="gh-modal-title">Join <b>DEVERSE</b></div>
+            <div className="gh-modal-sub">Enter a GitHub username — we pull the public profile, repos &amp; languages and pin it on the map for real.</div>
             <div className="gh-field">
               <label>github.com /</label>
               <input
                 autoFocus
                 value={name}
                 placeholder="your-username"
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && authorize()}
+                disabled={!!busy}
+                onChange={(e) => { setName(e.target.value); setError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && submitUsername()}
               />
             </div>
             <ul className="gh-scopes">
-              <li><span className="ok">✓</span> Read your public profile</li>
-              <li><span className="ok">✓</span> Read public repos &amp; languages</li>
-              <li><span className="ok">✓</span> Pin you on the developer map</li>
+              <li><span className="ok">✓</span> Real public profile &amp; avatar</li>
+              <li><span className="ok">✓</span> Public repos &amp; top languages</li>
+              <li><span className="ok">✓</span> Geocoded onto the developer map</li>
             </ul>
-            <button className={"gh-authorize" + (authing ? " busy" : "")} onClick={authorize} disabled={authing}>
+            {error && <div className="gh-err">{error}</div>}
+            <button className={"gh-authorize" + (busy ? " busy" : "")} onClick={submitUsername} disabled={!!busy}>
               <GitHubMark size={16} />
-              <span>{authing ? "Authorizing…" : "Authorize & join"}</span>
+              <span>{busy || "Fetch & join"}</span>
             </button>
-            <div className="gh-foot">DEVERSE never sees your password · OAuth via GitHub</div>
+            <div className="gh-foot">Public GitHub data only · no password, no token stored</div>
           </div>
         </div>
       )}
@@ -141,19 +187,23 @@ function GitHubAuth() {
 /* ---- profile panel ---- */
 function Profile({ d, onClose }) {
   if (!d) return null;
+  const real = d.real;
   return (
     <div className="profile panel" role="dialog" aria-label={"Developer profile: " + d.name}>
       <button className="close" onClick={onClose} aria-label="Close profile">×</button>
       <div className="ph">
-        <PixelAvatar seed={d.avatar} size={64} />
+        <Avatar d={d} size={64} />
         <div>
-          <div className="nm">{d.name}</div>
+          <div className="nm">{d.name}{real && <span className="real-badge">GitHub</span>}</div>
           <div className="hd">{d.handle}</div>
-          <div className="loc"><span className={"st " + d.status} />{d.city}, {d.country}</div>
+          <div className="loc">
+            <span className={"st " + d.status} />
+            {d.located || !real ? (d.country ? `${d.city}, ${d.country}` : d.city) : <span className="muted-loc">location not set</span>}
+          </div>
         </div>
       </div>
       <div className="statgrid">
-        <div className="s"><div className="v">{d.years}y</div><div className="k">Exp</div></div>
+        <div className="s"><div className="v">{real ? d.years + "y" : d.years + "y"}</div><div className="k">{real ? "On GH" : "Exp"}</div></div>
         <div className="s"><div className="v">{d.repos}</div><div className="k">Repos</div></div>
         <div className="s"><div className="v">{d.stars >= 1000 ? (d.stars / 1000).toFixed(1) + "k" : d.stars}</div><div className="k">Stars</div></div>
       </div>
@@ -163,20 +213,26 @@ function Profile({ d, onClose }) {
           <div className="val">{d.focus}</div>
         </div>
         <div className="field">
-          <div className="lab">Stack</div>
+          <div className="lab">{real ? "Top languages" : "Stack"}</div>
           <div className="taglist">{d.langs.map((l) => <span className="tag" key={l}>{l}</span>)}</div>
         </div>
         <div className="field">
           <div className="lab">Status</div>
-          <div className="st-row"><span className={"st " + d.status} />{d.status}</div>
+          <div className="st-row"><span className={"st " + d.status} />{real ? "signed in" : d.status}</div>
         </div>
         <div className="field">
           <div className="tagline">“{d.tagline}”</div>
         </div>
       </div>
       <div className="pfoot">
-        <button className="btn">View profile</button>
-        <button className="btn ghost">Message</button>
+        {real ? (
+          <a className="btn" href={d.htmlUrl} target="_blank" rel="noreferrer">View on GitHub ↗</a>
+        ) : (
+          <>
+            <button className="btn">View profile</button>
+            <button className="btn ghost">Message</button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -210,17 +266,30 @@ export default function App() {
   const [railOpen, setRailOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [onlineOnly, setOnlineOnly] = useState(init.onlineOnly);
+  // the signed-in real GitHub developer (persisted), overlaid on the fiction
+  const [me, setMe] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("deverse_me") || "null"); } catch { return null; }
+  });
   const globeRef = useRef(null);
 
-  const onlineCount = useMemo(() => D.developers.filter((d) => d.status === "online").length, []);
+  useEffect(() => {
+    if (me) localStorage.setItem("deverse_me", JSON.stringify(me));
+    else localStorage.removeItem("deverse_me");
+  }, [me]);
+
+  // the seeded fiction with the real signed-in user pinned on top
+  const developers = useMemo(() => (me ? [...D.developers, me] : D.developers), [me]);
+
+  const onlineCount = useMemo(() => developers.filter((d) => d.status === "online").length, [developers]);
+  const countryCount = useMemo(() => new Set(developers.map((d) => d.country).filter(Boolean)).size, [developers]);
 
   useEffect(() => { const t = setTimeout(() => setBooted(true), 1100); return () => clearTimeout(t); }, []);
 
   // recenter on a deep-linked developer at startup
   useEffect(() => {
     if (init.selectedId == null) return;
-    const d = D.developers.find((x) => x.id === init.selectedId);
-    if (d) setFocusTarget({ lat: d.lat, lon: d.lon, k: d.id });
+    const d = developers.find((x) => x.id === init.selectedId);
+    if (d && d.lat != null) setFocusTarget({ lat: d.lat, lon: d.lon, k: d.id });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -249,7 +318,7 @@ export default function App() {
     const q = query.trim().toLowerCase();
     if (!hasLang && !activeCountry && !q && !onlineOnly) return null;
     const set = new Set();
-    for (const d of D.developers) {
+    for (const d of developers) {
       if (onlineOnly && d.status !== "online") continue;
       if (hasLang && !d.langs.some((l) => activeLangs.has(l))) continue;
       if (activeCountry && d.country !== activeCountry) continue;
@@ -260,11 +329,11 @@ export default function App() {
       set.add(d.id);
     }
     return set;
-  }, [activeLangs, activeCountry, query, onlineOnly]);
+  }, [activeLangs, activeCountry, query, onlineOnly, developers]);
 
-  const matchCount = dimSet ? dimSet.size : D.developers.length;
+  const matchCount = dimSet ? dimSet.size : developers.length;
 
-  const selected = useMemo(() => D.developers.find((d) => d.id === selectedId) || null, [selectedId]);
+  const selected = useMemo(() => developers.find((d) => d.id === selectedId) || null, [selectedId, developers]);
 
   // the selected developer's connection network (for arcs + highlighted nodes)
   const linkSet = useMemo(() => (selected ? new Set(selected.connections) : null), [selected]);
@@ -282,20 +351,35 @@ export default function App() {
   const handleSelect = useCallback((id) => {
     setSelectedId(id);
     if (id != null) {
-      const d = D.developers.find((x) => x.id === id);
-      if (d) setFocusTarget({ lat: d.lat, lon: d.lon, k: id });
+      const d = developers.find((x) => x.id === id);
+      if (d && d.lat != null) setFocusTarget({ lat: d.lat, lon: d.lon, k: id });
     }
-  }, []);
+  }, [developers]);
   const handleHover = useCallback((id) => setHoveredId(id), []);
+
+  // bring the freshly-authed real user into focus
+  const handleAuthed = useCallback((dev) => {
+    setMe(dev);
+    setSelectedId(dev.id);
+    if (dev.lat != null) setFocusTarget({ lat: dev.lat, lon: dev.lon, k: dev.id });
+  }, []);
+  const handleSignOut = useCallback(() => {
+    setMe((cur) => { if (cur && selectedId === cur.id) setSelectedId(null); return null; });
+  }, [selectedId]);
+  const showMyProfile = useCallback(() => {
+    if (!me) return;
+    setSelectedId(me.id);
+    if (me.lat != null) setFocusTarget({ lat: me.lat, lon: me.lon, k: me.id });
+  }, [me]);
 
   // keyboard: ←/→ (or ↑/↓) browse the currently shown developers, Esc closes
   const cycleSelection = useCallback((dir) => {
-    const list = dimSet ? D.developers.filter((d) => dimSet.has(d.id)) : D.developers;
+    const list = dimSet ? developers.filter((d) => dimSet.has(d.id)) : developers;
     if (!list.length) return;
     const at = list.findIndex((d) => d.id === selectedId);
     const next = at === -1 ? (dir > 0 ? 0 : list.length - 1) : (at + dir + list.length) % list.length;
     handleSelect(list[next].id);
-  }, [dimSet, selectedId, handleSelect]);
+  }, [dimSet, selectedId, handleSelect, developers]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -322,7 +406,7 @@ export default function App() {
   // Enter in search → focus & select first match
   const onSearchKey = (e) => {
     if (e.key === "Enter" && dimSet && dimSet.size) {
-      const first = D.developers.find((d) => dimSet.has(d.id));
+      const first = developers.find((d) => dimSet.has(d.id));
       if (first) { handleSelect(first.id); setRailOpen(false); }
     }
   };
@@ -331,7 +415,7 @@ export default function App() {
     <div className="app">
       <Globe
         ref={globeRef}
-        developers={D.developers}
+        developers={developers}
         onHover={handleHover}
         onSelect={handleSelect}
         hoveredId={hoveredId}
@@ -362,11 +446,11 @@ export default function App() {
             <span><b>{onlineCount}</b> online</span>
           </button>
           <div className="status-pill panel">
-            <span><b>{D.developers.length}</b> devs</span>
+            <span><b>{developers.length}</b> devs</span>
             <span className="sep" />
-            <span><b>{Object.keys(D.countryCounts).length}</b> countries</span>
+            <span><b>{countryCount}</b> countries</span>
           </div>
-          <GitHubAuth />
+          <GitHubAuth me={me} onAuthed={handleAuthed} onSignOut={handleSignOut} onShowProfile={showMyProfile} />
         </div>
       </div>
 
@@ -451,6 +535,7 @@ export default function App() {
         <div className="lg"><span className="sw" style={{ background: "var(--green)" }} />developer</div>
         <div className="lg"><span className="sw" style={{ background: "var(--teal)" }} />connection</div>
         <div className="lg"><span className="sw" style={{ background: "var(--amber)" }} />selected</div>
+        <div className="lg"><span className="sw" style={{ background: "var(--magenta)" }} />you (GitHub)</div>
       </div>
 
       {/* overlays */}
