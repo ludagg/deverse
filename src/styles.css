@@ -497,3 +497,51 @@ img.avatar { object-fit: cover; }
   .ctrl { width: 30px; height: 30px; font-size: 16px; }
   .ctrl.wide { padding: 0 8px; font-size: 13px; }
 }
+
+/* deep-zoom country banner — shown when the globe dives into one country */
+.country-banner {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px 7px 7px;
+  border-color: var(--green-dim);
+  box-shadow: var(--shadow), 0 0 18px rgba(57, 211, 83, 0.18);
+  animation: cb-in 0.25s steps(4);
+}
+@keyframes cb-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.cb-back {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  font-size: 18px;
+  color: var(--ink);
+  border: 2px solid var(--line);
+  background: var(--bg-deep);
+}
+.cb-back:hover { border-color: var(--green); color: var(--green); }
+.cb-name {
+  font-family: var(--pico);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--ink);
+  text-transform: uppercase;
+  text-shadow: 0 0 10px rgba(57, 211, 83, 0.3);
+}
+.cb-sub {
+  font-size: 16px;
+  color: var(--teal);
+  letter-spacing: 0.5px;
+}
+@media (max-width: 720px) {
+  .country-banner { top: 52px; padding: 5px 10px 5px 5px; }
+  .cb-name { font-size: 9px; }
+  .cb-sub { font-size: 14px; }
+}
