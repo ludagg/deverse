@@ -1,15 +1,19 @@
 /* DEVERSE — on-demand admin-1 (states / provinces / regions) boundaries.
  *
  * The bundled world-atlas only carries country outlines, so the internal region
- * borders you see when you zoom deep into a country are fetched lazily from a
- * CDN (Natural Earth 50m admin-1, served by jsDelivr with permissive CORS) the
- * first time any country is opened, then kept in memory. Everything degrades
- * gracefully: if the network is blocked the deep-zoom view simply shows the
- * country without its internal subdivisions. Nothing is fetched until you
- * actually zoom into a country. */
+ * borders you see when you zoom deep into a country are fetched lazily, one
+ * country at a time, from geoBoundaries (https://www.geoboundaries.org) — an
+ * open dataset with global ADM1 coverage and permissive CORS. (Natural Earth's
+ * low-resolution admin-1 only ships a handful of big federal countries, which
+ * is why most countries used to draw no regions at all.)
+ *
+ * Flow per country: the geoBoundaries API returns metadata pointing at a
+ * simplified GeoJSON, which we fetch and convert to sphere-ready line rings.
+ * Everything is cached and degrades gracefully: countries with no ADM1 data
+ * (Antarctica, tiny states…) or a blocked network simply show no subdivisions.
+ * Nothing is fetched until you actually zoom into a country. */
 
-const CDN =
-  "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@v5.1.2/geojson/ne_50m_admin_1_states_provinces.geojson";
+const API = "https://www.geoboundaries.org/api/current/gbOpen/";
 
 const DEG = Math.PI / 180;
 
@@ -38,7 +42,7 @@ function ringsFromGeometry(geometry, into) {
   if (!geometry) return;
   const pushLine = (line) => {
     if (!line || line.length < 2) return;
-    const ln = densify(line, 2);
+    const ln = densify(line, 1.5);
     const v = new Float32Array(ln.length * 3);
     for (let i = 0; i < ln.length; i++) {
       const p = vec(ln[i][0], ln[i][1]);
@@ -46,56 +50,54 @@ function ringsFromGeometry(geometry, into) {
     }
     into.push(v);
   };
-  const { type, coordinates } = geometry;
-  if (type === "Polygon") for (const ring of coordinates) pushLine(ring);
-  else if (type === "MultiPolygon") for (const poly of coordinates) for (const ring of poly) pushLine(ring);
+  const walk = (g) => {
+    if (!g) return;
+    if (g.type === "Polygon") for (const ring of g.coordinates) pushLine(ring);
+    else if (g.type === "MultiPolygon") for (const poly of g.coordinates) for (const ring of poly) pushLine(ring);
+    else if (g.type === "GeometryCollection") for (const sub of g.geometries) walk(sub);
+  };
+  walk(geometry);
 }
 
-/* Normalise a country name for matching world-atlas names against NE's `admin`. */
-function norm(s) {
-  return (s || "")
-    .toLowerCase()
-    .replace(/[.''-]/g, " ")
-    .replace(/\b(dem|democratic|rep|republic|the|of)\b/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+/* geoBoundaries points at github.com/<o>/<r>/raw/… , but those files are stored
+ * in Git LFS: that URL 302-redirects to media.githubusercontent.com, and the
+ * redirect itself carries no CORS header, so a browser fetch of it fails. Hit
+ * the media host directly — it serves the LFS content with permissive CORS and
+ * no redirect. (raw.githubusercontent.com would only return the LFS pointer.) */
+function cdnify(url) {
+  return url.replace(
+    /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/raw\/(.+)$/,
+    "https://media.githubusercontent.com/media/$1/$2/$3",
+  );
 }
 
-let fcPromise = null; // memoised fetch of the whole admin-1 FeatureCollection
-const cache = new Map(); // normalised country name → array of sphere rings
+const cache = new Map(); // ISO3 → array of sphere rings (cached, incl. empty)
 
-function loadAll() {
-  if (!fcPromise) {
-    fcPromise = fetch(CDN)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("admin-1 HTTP " + r.status))))
-      .catch((e) => {
-        fcPromise = null; // allow a later retry
-        throw e;
-      });
-  }
-  return fcPromise;
-}
+/* Region border rings for one country (by ISO alpha-3), as sphere unit-vector
+ * Float32Arrays. Resolves to [] when there's no ADM1 data or the network is
+ * blocked, so callers can cache the result and never re-request. */
+export async function regionRingsFor(iso3) {
+  if (!iso3) return [];
+  if (cache.has(iso3)) return cache.get(iso3);
 
-/* Region border rings for one country, as sphere unit-vector Float32Arrays.
- * Resolves to [] when the data can't be loaded or the country has no match, so
- * callers can cache the result and never re-request. */
-export async function regionRingsFor(countryName) {
-  const key = norm(countryName);
-  if (cache.has(key)) return cache.get(key);
-
-  let fc;
+  let rings = [];
   try {
-    fc = await loadAll();
+    const metaRes = await fetch(API + iso3 + "/ADM1/");
+    if (metaRes.ok) {
+      const meta = await metaRes.json();
+      const url = meta && (meta.simplifiedGeometryGeoJSON || meta.gjDownloadURL);
+      if (url) {
+        const fcRes = await fetch(cdnify(url));
+        if (fcRes.ok) {
+          const fc = await fcRes.json();
+          for (const feat of fc.features || []) ringsFromGeometry(feat.geometry, rings);
+        }
+      }
+    }
   } catch {
-    return []; // network blocked → no regions, country still shown
+    rings = []; // network blocked / parse error → no regions, country still shown
   }
 
-  const rings = [];
-  for (const feat of fc.features || []) {
-    const admin = feat.properties && (feat.properties.admin || feat.properties.geonunit);
-    if (norm(admin) !== key) continue;
-    ringsFromGeometry(feat.geometry, rings);
-  }
-  cache.set(key, rings);
+  cache.set(iso3, rings);
   return rings;
 }
