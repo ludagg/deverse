@@ -1,9 +1,10 @@
-/* DEVERSE — UI layer. */
+/* DEVMAP — UI layer. */
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import D from "./data.js";
 import Globe from "./Globe.jsx";
 import CountryMap from "./CountryMap.jsx";
 import { COUNTRY_LABELS } from "./labels.js";
+import { LANGUAGES } from "./languages.js";
 import { tallies, peersOf } from "./derive.js";
 import {
   oauthConfigured,
@@ -167,7 +168,7 @@ function GitHubAuth({ me, onAuthed, onSignOut, onShowProfile }) {
               <GitHubMark size={26} />
               <button className="gh-x" aria-label="Close" onClick={() => setModal(false)} disabled={!!busy}>×</button>
             </div>
-            <div className="gh-modal-title" id="gh-modal-title">Join <b>DEVERSE</b></div>
+            <div className="gh-modal-title" id="gh-modal-title">Join <b>DEVMAP</b></div>
             <div className="gh-modal-sub">Enter a GitHub username — we pull the public profile, repos &amp; languages and pin it on the map for real.</div>
             <div className="gh-field">
               <label>github.com /</label>
@@ -317,14 +318,31 @@ export default function App() {
 
   const { langCounts, allLangs, countryCounts } = useMemo(() => {
     const t = tallies(developers);
-    return { langCounts: t.langCounts, allLangs: t.topLangs, countryCounts: t.countryCounts };
+    // suggestion pool: languages present in the data (with counts) first, then
+    // the rest of the curated list — so you can pick anything, not just what's
+    // already on the map
+    const present = t.topLangs;
+    const presentLower = new Set(present.map((l) => l.toLowerCase()));
+    const extra = LANGUAGES.filter((l) => !presentLower.has(l.toLowerCase()));
+    return { langCounts: t.langCounts, allLangs: [...present, ...extra], countryCounts: t.countryCounts };
   }, [developers]);
 
-  // languages matching the typeahead (excluding ones already picked), top few
+  // languages matching the typeahead (excluding ones already picked)
   const langSuggestions = useMemo(() => {
     const q = langQuery.trim().toLowerCase();
-    const pool = allLangs.filter((l) => !activeLangs.has(l));
+    const activeLower = new Set([...activeLangs].map((l) => l.toLowerCase()));
+    const pool = allLangs.filter((l) => !activeLower.has(l.toLowerCase()));
     return (q ? pool.filter((l) => l.toLowerCase().includes(q)) : pool).slice(0, 8);
+  }, [langQuery, allLangs, activeLangs]);
+
+  // can the typed text be added as-is (free text) — i.e. it isn't already an
+  // exact suggestion and isn't already active? lets you filter by ANY language
+  const langFreeText = useMemo(() => {
+    const q = langQuery.trim();
+    if (!q) return null;
+    const ql = q.toLowerCase();
+    const exists = allLangs.some((l) => l.toLowerCase() === ql) || [...activeLangs].some((l) => l.toLowerCase() === ql);
+    return exists ? null : q;
   }, [langQuery, allLangs, activeLangs]);
 
   const countryCount = useMemo(() => new Set(developers.map((d) => d.country).filter(Boolean)).size, [developers]);
@@ -359,11 +377,13 @@ export default function App() {
   // which dev ids pass the active filters/search
   const dimSet = useMemo(() => {
     const hasLang = activeLangs.size > 0;
+    // match languages case-insensitively, so a free-typed "cobol" finds "COBOL"
+    const activeLower = new Set([...activeLangs].map((l) => l.toLowerCase()));
     const q = query.trim().toLowerCase();
     if (!hasLang && !activeCountry && !q) return null;
     const set = new Set();
     for (const d of developers) {
-      if (hasLang && !d.langs.some((l) => activeLangs.has(l))) continue;
+      if (hasLang && !d.langs.some((l) => activeLower.has(l.toLowerCase()))) continue;
       if (activeCountry && d.country !== activeCountry) continue;
       if (q) {
         const hay = (d.name + " " + d.handle + " " + d.city + " " + d.country + " " + d.langs.join(" ") + " " + d.focus).toLowerCase();
@@ -520,7 +540,7 @@ export default function App() {
         <div className="brand">
           <div className="mark" />
           <div>
-            <h1>DEVERSE</h1>
+            <h1>DEVMAP</h1>
             <div className="sub">world.map(dev)</div>
           </div>
         </div>
@@ -579,15 +599,25 @@ export default function App() {
               value={langQuery}
               placeholder="type a language…"
               onChange={(e) => setLangQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && langSuggestions[0]) addLang(langSuggestions[0]); }}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                if (langSuggestions[0]) addLang(langSuggestions[0]);
+                else if (langFreeText) addLang(langFreeText);
+              }}
             />
-            {langQuery && langSuggestions.length > 0 && (
+            {langQuery && (langSuggestions.length > 0 || langFreeText) && (
               <div className="lang-menu">
                 {langSuggestions.map((l) => (
                   <button key={l} className="lang-opt" onClick={() => addLang(l)}>
-                    <span>{l}</span><span className="n">{langCounts[l]}</span>
+                    <span>{l}</span>
+                    {langCounts[l] != null && <span className="n">{langCounts[l]}</span>}
                   </button>
                 ))}
+                {langFreeText && (
+                  <button className="lang-opt free" onClick={() => addLang(langFreeText)}>
+                    <span>filter by “{langFreeText}”</span><span className="n">↵</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -673,7 +703,7 @@ export default function App() {
 
       <div className={"boot" + (booted ? " gone" : "")}>
         <div>
-          <div className="bw">DEVERSE&nbsp;OS&nbsp;v1.0</div>
+          <div className="bw">DEVMAP&nbsp;OS&nbsp;v1.0</div>
           <div style={{ marginTop: 16, color: "var(--ink-2)" }}>booting world map…</div>
           <div style={{ color: "var(--green)" }}>loading {developers.length} developers ▓▓▓▓▓▓▓▓</div>
         </div>

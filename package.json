@@ -1,9 +1,9 @@
 {
-  "name": "deverse",
+  "name": "devmap",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "DEVERSE — retro pixel-art world map of developers",
+  "description": "devmap — retro pixel-art world map of developers (devmap.world)",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

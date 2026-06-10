@@ -1,4 +1,4 @@
-/* DEVERSE — vector country-outline globe (canvas, hi-res). */
+/* DEVMAP — vector country-outline globe (canvas, hi-res). */
 import { useRef, useEffect, useState, useImperativeHandle, forwardRef } from "react";
 import { GEO_RINGS } from "./geo.js";
 import { COUNTRY_LABELS } from "./labels.js";

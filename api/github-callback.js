@@ -1,4 +1,4 @@
-/* DEVERSE — serverless GitHub OAuth token exchange (Vercel Node function).
+/* DEVMAP — serverless GitHub OAuth token exchange (Vercel Node function).
  *
  * The browser sends the authorization `code` here; we swap it for an access
  * token using the *server-only* client secret, then read the user's public
@@ -192,7 +192,7 @@ function toDeveloper(p, geo) {
   };
 }
 
-/* Collapse the GitHub user + repos payloads into DEVERSE's profile shape.
+/* Collapse the GitHub user + repos payloads into DEVMAP's profile shape.
  * Mirrors normalizeProfile() in src/github.js — keep the two in sync. */
 function normalize(user, repos) {
   let stars = 0;

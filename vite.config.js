@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
-// DEVERSE — Vite + React. The world-atlas country geometry is bundled at build
+// DEVMAP — Vite + React. The world-atlas country geometry is bundled at build
 // time (imported JSON), so the globe's real outlines render with no network call.
 //
 // In production the serverless function in /api runs on Vercel. The dev plugin

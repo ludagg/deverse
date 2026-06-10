@@ -1,4 +1,4 @@
-/* DEVERSE — GET /api/developers
+/* DEVMAP — GET /api/developers
  * Returns every developer on the map (real, from the database). When no
  * DATABASE_URL is configured it returns an empty array so the front-end falls
  * back to the bundled dataset — the app keeps working before the DB is set up. */

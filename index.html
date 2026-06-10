@@ -3,28 +3,54 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>DEVERSE — World Map of Developers</title>
+    <title>devmap — World Map of Developers</title>
 
-    <!-- favicon (pixel-art globe) -->
+    <!-- favicon (pixel-art globe) + PWA -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#08130f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="devmap" />
 
     <!-- SEO -->
-    <meta name="description" content="DEVERSE — a retro pixel-art / CRT world map of the global developer community. A 3D vector globe with real country outlines, seeded developers, search, stack filters and GitHub sign-in." />
-    <meta name="author" content="DEVERSE" />
+    <meta name="description" content="devmap is a live world map of developers — explore the global developer community on a retro pixel-art 3D globe with real country outlines and regions, search by name, city or programming language, drill into any country's flat map, and sign in with GitHub to put yourself on the map." />
+    <meta name="keywords" content="developers, world map, developer map, github, programming languages, open source, globe, software engineers, devmap" />
+    <meta name="author" content="devmap" />
+    <link rel="canonical" href="https://devmap.world/" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="DEVERSE — World Map of Developers" />
-    <meta property="og:description" content="A retro pixel-art / CRT world map of the global developer community — a 3D vector globe with real country outlines." />
-    <meta property="og:image" content="https://raw.githubusercontent.com/ludagg/deverse/master/docs/screenshots/hero.png" />
-    <meta property="og:image:alt" content="DEVERSE — vector globe with real country outlines and the developer UI" />
+    <meta property="og:site_name" content="devmap" />
+    <meta property="og:url" content="https://devmap.world/" />
+    <meta property="og:title" content="devmap — World Map of Developers" />
+    <meta property="og:description" content="A live, retro pixel-art world map of the global developer community — a 3D vector globe with real country outlines and regions. Search by stack, drill into any country, and sign in with GitHub to appear on the map." />
+    <meta property="og:image" content="https://devmap.world/og.png" />
+    <meta property="og:image:width" content="2880" />
+    <meta property="og:image:height" content="1800" />
+    <meta property="og:image:alt" content="devmap — vector globe with real country outlines and the developer UI" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="DEVERSE — World Map of Developers" />
-    <meta name="twitter:description" content="A retro pixel-art / CRT world map of the global developer community." />
-    <meta name="twitter:image" content="https://raw.githubusercontent.com/ludagg/deverse/master/docs/screenshots/hero.png" />
+    <meta name="twitter:title" content="devmap — World Map of Developers" />
+    <meta name="twitter:description" content="A live, retro pixel-art world map of the global developer community — explore the globe, drill into countries, and sign in with GitHub." />
+    <meta name="twitter:image" content="https://devmap.world/og.png" />
+
+    <!-- structured data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "devmap",
+        "url": "https://devmap.world/",
+        "applicationCategory": "BrowserApplication",
+        "operatingSystem": "Any",
+        "description": "A live world map of developers on a retro pixel-art 3D globe with real country outlines and regions. Search by programming language, drill into any country, and sign in with GitHub to appear on the map.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

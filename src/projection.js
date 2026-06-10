@@ -1,4 +1,4 @@
-/* DEVERSE — shared sphere projection math.
+/* DEVMAP — shared sphere projection math.
  *
  * Extracted from the globe renderer so the orientation invariants — in
  * particular the "mirror fix" that makes EAST longitudes fall to the RIGHT of

@@ -1,4 +1,4 @@
-/* DEVERSE — ISO 3166-1 numeric → alpha-3 code map.
+/* DEVMAP — ISO 3166-1 numeric → alpha-3 code map.
  *
  * The bundled world-atlas tags each country geometry with its numeric ISO code
  * (840 = USA, 250 = France). The on-demand region service (geoBoundaries) keys

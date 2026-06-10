@@ -1,4 +1,4 @@
-/* DEVERSE — on-demand admin-1 (states / provinces / regions) boundaries.
+/* DEVMAP — on-demand admin-1 (states / provinces / regions) boundaries.
  *
  * The bundled world-atlas only carries country outlines, so the internal region
  * borders are fetched lazily, one country at a time, from geoBoundaries

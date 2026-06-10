@@ -1,4 +1,4 @@
-/* DEVERSE — Postgres access layer for the serverless functions.
+/* DEVMAP — Postgres access layer for the serverless functions.
  *
  * Provider-agnostic: works with any Postgres (Supabase, Neon, Vercel Postgres)
  * via the DATABASE_URL connection string. When DATABASE_URL is absent the app
