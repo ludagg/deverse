@@ -279,6 +279,7 @@ export default function App() {
   const [autoToggle, setAutoToggle] = useState(true);
   const [focusTarget, setFocusTarget] = useState(null);
   const [booted, setBooted] = useState(false);
+  const [viewCountry, setViewCountry] = useState(null); // country the deep zoom is sitting over
   const [railOpen, setRailOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [onlineOnly, setOnlineOnly] = useState(init.onlineOnly);
@@ -317,6 +318,18 @@ export default function App() {
     const t = tallies(developers);
     return { langCounts: t.langCounts, topLangs: t.topLangs.slice(0, 14), countryCounts: t.countryCounts };
   }, [developers]);
+
+  // count devs in the deep-zoomed country — loose match, since the atlas name
+  // ("United States of America") rarely equals the geocoded one ("United States")
+  const countryDevCount = useMemo(() => {
+    if (!viewCountry) return 0;
+    const norm = (s) => (s || "").toLowerCase().replace(/[^a-z]/g, "");
+    const b = norm(viewCountry);
+    return developers.filter((d) => {
+      const a = norm(d.country);
+      return a && b && (a === b || a.includes(b) || b.includes(a));
+    }).length;
+  }, [viewCountry, developers]);
 
   const onlineCount = useMemo(() => developers.filter((d) => d.status === "online").length, [developers]);
   const countryCount = useMemo(() => new Set(developers.map((d) => d.country).filter(Boolean)).size, [developers]);
@@ -397,6 +410,11 @@ export default function App() {
     }
   }, [developers]);
   const handleHover = useCallback((id) => setHoveredId(id), []);
+  const handleCountryFocus = useCallback((name) => setViewCountry(name), []);
+  const exitCountry = useCallback(() => {
+    if (globeRef.current) globeRef.current.reset();
+    setViewCountry(null);
+  }, []);
 
   // bring the freshly-authed real user into focus
   const handleAuthed = useCallback((dev) => {
@@ -466,7 +484,17 @@ export default function App() {
         linkSet={linkSet}
         focusTarget={focusTarget}
         autoToggle={autoToggle}
+        onCountryFocus={handleCountryFocus}
       />
+
+      {/* deep-zoom country banner — appears when the globe dives into a country */}
+      {viewCountry && (
+        <div className="country-banner panel">
+          <button className="cb-back" onClick={exitCountry} aria-label="Back to the globe">←</button>
+          <span className="cb-name">{viewCountry}</span>
+          <span className="cb-sub">{countryDevCount} devs · regions</span>
+        </div>
+      )}
 
       {/* top bar */}
       <div className="topbar">

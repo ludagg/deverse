@@ -1,9 +1,41 @@
 /* DEVERSE — vector country-outline globe (canvas, hi-res). */
 import { useRef, useEffect, useState, useImperativeHandle, forwardRef } from "react";
 import { GEO_RINGS } from "./geo.js";
+import { COUNTRY_LABELS } from "./labels.js";
+import { regionRingsFor } from "./regions.js";
 import { lonLatToVec, project, worldToScreen } from "./projection.js";
 
 const DEG = Math.PI / 180;
+
+// Zoom envelope. The ceiling is high enough to dive into a single country (a
+// developer focus only nudges to FOCUS_ZOOM); past DEEP_ZOOM the centred
+// country reveals its admin-1 regions, loaded on demand.
+const MIN_ZOOM = 0.7;
+const MAX_ZOOM = 9;
+const FOCUS_ZOOM = 2.7;
+const DEEP_ZOOM = 3.4;
+
+const clampZoom = (z) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
+
+/* Pick the rotation-equivalent of `target` nearest `current` so the globe takes
+ * the short way round instead of unwinding a near-full turn. */
+function nearestAngle(target, current) {
+  let d = target - current;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return current + d;
+}
+
+/* Yaw that brings longitude `lon` to the front-centre of the view. The renderer
+ * centres lon = yaw + 90°, so the camera-facing meridian is (lon − 90)°. */
+const centerYaw = (lon) => (lon - 90) * DEG;
+
+/* Tidy a couple of long atlas names so labels read like a printed map. */
+function labelText(name) {
+  if (name === "United States of America") return "UNITED STATES";
+  if (name === "Dem. Rep. Congo") return "DR CONGO";
+  return name.toUpperCase();
+}
 
 /* Latitude/longitude graticule as line rings of unit vectors (Float32Array). */
 function buildGraticule() {
@@ -30,11 +62,14 @@ const Globe = forwardRef(function Globe(props, ref) {
   const wrapRef = useRef(null);
   const gratRef = useRef(null);
   const stateRef = useRef({
-    yaw: -1.9, pitch: 0.32, zoom: 1,
+    yaw: -1.9, pitch: 0.32, zoom: 1, tZoom: 1,
     tYaw: -1.9, tPitch: 0.32, focusing: false,
     dragging: false, moved: 0, lastX: 0, lastY: 0,
     res: 2, bw: 0, bh: 0,
     pins: [], t: 0,
+    activeCountry: null,           // country centred under a deep zoom
+    regionRings: new Map(),        // country name → admin-1 rings (lazy, CDN)
+    reportedCountry: undefined,    // last name handed up to React (avoids churn)
   });
   const propsRef = useRef(props);
   propsRef.current = props;
@@ -43,19 +78,26 @@ const Globe = forwardRef(function Globe(props, ref) {
   if (!gratRef.current) gratRef.current = buildGraticule();
 
   useImperativeHandle(ref, () => ({
-    zoomBy: (f) => { const s = stateRef.current; s.zoom = Math.max(0.7, Math.min(2.6, s.zoom * f)); },
-    reset: () => { const s = stateRef.current; s.tYaw = -1.9; s.tPitch = 0.32; s.focusing = true; s.zoom = 1; },
-    focusLatLon: (lat, lon) => {
+    zoomBy: (f) => { const s = stateRef.current; s.tZoom = clampZoom(s.tZoom * f); },
+    reset: () => {
       const s = stateRef.current;
-      s.tYaw = lon * DEG; s.tPitch = Math.max(-1.0, Math.min(1.0, lat * DEG)); s.focusing = true;
+      s.tYaw = nearestAngle(-1.9, s.yaw); s.tPitch = 0.32; s.tZoom = 1; s.focusing = true;
+    },
+    focusLatLon: (lat, lon, zoom) => {
+      const s = stateRef.current;
+      s.tYaw = nearestAngle(centerYaw(lon), s.yaw);
+      s.tPitch = Math.max(-1.0, Math.min(1.0, lat * DEG));
+      s.tZoom = clampZoom(zoom != null ? zoom : Math.max(s.tZoom, FOCUS_ZOOM));
+      s.focusing = true;
     },
   }));
 
   useEffect(() => {
     if (!props.focusTarget) return;
     const s = stateRef.current;
-    s.tYaw = props.focusTarget.lon * DEG;
+    s.tYaw = nearestAngle(centerYaw(props.focusTarget.lon), s.yaw);
     s.tPitch = Math.max(-1.0, Math.min(1.0, props.focusTarget.lat * DEG));
+    s.tZoom = clampZoom(Math.max(s.tZoom, FOCUS_ZOOM));
     s.focusing = true;
   }, [props.focusTarget]);
 
@@ -109,13 +151,15 @@ const Globe = forwardRef(function Globe(props, ref) {
         s.yaw += (s.tYaw - s.yaw) * 0.11;
         s.pitch += (s.tPitch - s.pitch) * 0.11;
         if (Math.abs(s.tYaw - s.yaw) < 0.003 && Math.abs(s.tPitch - s.pitch) < 0.003) s.focusing = false;
-      } else if (P.autoToggle && !s.dragging && !P.selectedId) {
+      } else if (P.autoToggle && !s.dragging && !P.selectedId && s.zoom < 1.4) {
         s.yaw -= 0.0019;
       }
+      // ease zoom toward its target so wheel, buttons and focus all glide
+      s.zoom += (s.tZoom - s.zoom) * 0.16;
 
       const bw = s.bw, bh = s.bh, res = s.res;
       const cx = bw / 2, cy = bh / 2;
-      const R = Math.min(bw, bh) * 0.46 * s.zoom;
+      const R = Math.min(bw, bh) * 0.46 * Math.max(s.zoom, MIN_ZOOM);
       const cosY = Math.cos(s.yaw), sinY = Math.sin(s.yaw);
       const cp = Math.cos(s.pitch), sp = Math.sin(s.pitch);
 
@@ -160,7 +204,81 @@ const Globe = forwardRef(function Globe(props, ref) {
         ctx.strokeStyle = "rgba(74,224,110,0.6)";
         ctx.stroke();
       }
+
+      // --- deep zoom: the country under the centre reveals its admin-1 regions
+      let active = null;
+      if (s.zoom > DEEP_ZOOM) {
+        let bestD = Infinity;
+        for (const c of COUNTRY_LABELS) {
+          const v = lonLatToVec(c.lat, c.lon);
+          const { sx, sy, zz } = worldToScreen(v[0], v[1], v[2], s.yaw, s.pitch, cx, cy, R);
+          if (zz <= 0.35) continue;
+          const dd = (sx - cx) * (sx - cx) + (sy - cy) * (sy - cy);
+          if (dd < bestD) { bestD = dd; active = c.name; }
+        }
+      }
+      s.activeCountry = active;
+      if (active && !s.regionRings.has(active)) {
+        s.regionRings.set(active, null); // pending — avoids re-fetching every frame
+        regionRingsFor(active)
+          .then((r) => s.regionRings.set(active, r || []))
+          .catch(() => s.regionRings.set(active, []));
+      }
+      if (active) {
+        const rr = s.regionRings.get(active);
+        if (Array.isArray(rr) && rr.length) {
+          strokeRings(rr, cx, cy, R, cosY, sinY, cp, sp);
+          ctx.lineWidth = Math.max(0.8, 0.9 * res);
+          ctx.strokeStyle = "rgba(74,224,110,0.34)";
+          ctx.stroke();
+        }
+      }
+
+      // --- country name labels — scaled to each country's on-screen size, so
+      // big countries read at a glance and small ones only surface as you zoom
+      {
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineJoin = "round";
+        const placed = [];
+        for (const c of COUNTRY_LABELS) {
+          const v = lonLatToVec(c.lat, c.lon);
+          const { sx, sy, zz } = worldToScreen(v[0], v[1], v[2], s.yaw, s.pitch, cx, cy, R);
+          if (zz <= 0.14) continue; // hide near / behind the limb
+          const extent = c.size * DEG * R; // the country's rough on-screen span (px)
+          let fs = extent * 0.16;
+          if (fs < 7 * res) continue; // too small at this zoom → stays hidden
+          fs = Math.min(fs, 30 * res); // never let one label dominate the view
+          const isActive = c.name === active;
+          if (isActive) fs = Math.min(fs * 1.15, 34 * res);
+          ctx.font = fs + 'px "VT323", ui-monospace, monospace';
+          const text = labelText(c.name);
+          const w = ctx.measureText(text).width;
+          if (w > extent * 1.25 && !isActive) continue; // wouldn't sit inside the country
+          const h = fs;
+          const box = { x: sx - w / 2, y: sy - h / 2, w, h };
+          let clash = false;
+          for (const p of placed) {
+            if (!(box.x + box.w < p.x || p.x + p.w < box.x || box.y + box.h < p.y || p.y + p.h < box.y)) { clash = true; break; }
+          }
+          if (clash) continue;
+          placed.push(box);
+          const alpha = Math.min(1, (zz - 0.14) / 0.28); // fade in away from the limb
+          ctx.lineWidth = Math.max(2, fs * 0.22);
+          ctx.strokeStyle = "rgba(3,12,11," + (0.85 * alpha).toFixed(3) + ")";
+          ctx.strokeText(text, sx, sy);
+          ctx.fillStyle = (isActive ? "rgba(214,255,236," : "rgba(190,250,224,") + (0.94 * alpha).toFixed(3) + ")";
+          ctx.fillText(text, sx, sy);
+        }
+        ctx.textAlign = "start";
+        ctx.textBaseline = "alphabetic";
+      }
       ctx.restore();
+
+      if (s.activeCountry !== s.reportedCountry) {
+        s.reportedCountry = s.activeCountry;
+        if (P.onCountryFocus) P.onCountryFocus(s.activeCountry);
+      }
 
       // connection arcs from the selected developer (great-circle, lifted off
       // the sphere; drawn outside the clip so the arcs can rise above the limb)
@@ -344,7 +462,7 @@ const Globe = forwardRef(function Globe(props, ref) {
       canvas.classList.remove("grabbing");
     }
     function leave() { const P = propsRef.current; if (P.hoveredId != null) P.onHover(null); setTip(null); }
-    function wheel(e) { e.preventDefault(); s.zoom = Math.max(0.7, Math.min(2.6, s.zoom * (e.deltaY > 0 ? 0.92 : 1.08))); }
+    function wheel(e) { e.preventDefault(); s.tZoom = clampZoom(s.tZoom * (e.deltaY > 0 ? 0.9 : 1.1)); }
 
     canvas.addEventListener("pointerdown", down);
     window.addEventListener("pointermove", move);
