@@ -345,6 +345,7 @@ a.gh-menu-item { text-decoration: none; display: block; }
   position: absolute; top: 78px; right: 18px; z-index: 31;
   width: 312px;
   display: flex; flex-direction: column;
+  max-height: calc(100vh - 96px); overflow-y: auto;
   animation: slidein .18s steps(4);
 }
 .profile .ph {
@@ -498,50 +499,69 @@ img.avatar { object-fit: cover; }
   .ctrl.wide { padding: 0 8px; font-size: 13px; }
 }
 
-/* deep-zoom country banner — shown when the globe dives into one country */
-.country-banner {
-  position: fixed;
-  top: 64px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 40;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 14px 7px 7px;
+/* stack filter — language typeahead + active-language chips */
+.active-langs { max-height: none; margin-bottom: 8px; }
+.chip .x { color: var(--green-dim); margin-left: 2px; font-size: 16px; }
+.lang-search { position: relative; }
+.lang-search input {
+  width: 100%; background: var(--bg-deep); color: var(--ink);
+  border: 2px solid var(--line); padding: 7px 9px; font-family: var(--term); font-size: 17px;
+}
+.lang-search input:focus { outline: none; border-color: var(--teal-dim); }
+.lang-menu {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 12;
+  max-height: 220px; overflow: auto;
+  background: var(--panel-2); border: 2px solid var(--line); box-shadow: var(--shadow);
+}
+.lang-opt {
+  display: flex; justify-content: space-between; align-items: center; width: 100%;
+  padding: 7px 10px; font-size: 17px; color: var(--ink); border-bottom: 1px solid var(--line-soft);
+}
+.lang-opt:last-child { border-bottom: none; }
+.lang-opt:hover { background: rgba(57, 211, 83, 0.1); color: var(--green); }
+.lang-opt .n { color: var(--muted); font-size: 14px; }
+
+/* flat country mini-map — opens on clicking a country name */
+.cmap {
+  position: fixed; z-index: 42;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(520px, 92vw); height: min(560px, 78vh);
+  display: flex; flex-direction: column;
   border-color: var(--green-dim);
-  box-shadow: var(--shadow), 0 0 18px rgba(57, 211, 83, 0.18);
-  animation: cb-in 0.25s steps(4);
+  box-shadow: var(--shadow), 0 0 26px rgba(57, 211, 83, 0.16);
+  animation: slidein 0.18s steps(4);
 }
-@keyframes cb-in {
-  from { opacity: 0; transform: translate(-50%, -8px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+.cmap-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border-bottom: 2px solid var(--line);
+  background: linear-gradient(180deg, rgba(57, 211, 83, 0.07), transparent);
 }
-.cb-back {
-  width: 30px;
-  height: 30px;
-  flex: none;
-  font-size: 18px;
-  color: var(--ink);
-  border: 2px solid var(--line);
-  background: var(--bg-deep);
+.cmap-name { font-family: var(--pico); font-size: 12px; letter-spacing: 1px; color: var(--ink); text-transform: uppercase; }
+.cmap-sub { font-size: 16px; color: var(--teal); margin-top: 5px; }
+.cmap-x {
+  width: 26px; height: 26px; flex: none; font-size: 20px; color: var(--muted);
+  border: 1px solid var(--line); display: grid; place-items: center;
 }
-.cb-back:hover { border-color: var(--green); color: var(--green); }
-.cb-name {
-  font-family: var(--pico);
-  font-size: 11px;
-  letter-spacing: 1px;
-  color: var(--ink);
-  text-transform: uppercase;
-  text-shadow: 0 0 10px rgba(57, 211, 83, 0.3);
+.cmap-x:hover { color: var(--ink); border-color: var(--teal); }
+.cmap-stage { position: relative; flex: 1; min-height: 0; }
+.cmap-canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
+.cmap-canvas:active { cursor: grabbing; }
+.cmap-reset {
+  position: absolute; top: 8px; right: 8px; width: 28px; height: 28px;
+  font-size: 15px; color: var(--ink); background: rgba(6, 9, 16, 0.8);
+  border: 1px solid var(--line);
 }
-.cb-sub {
-  font-size: 16px;
-  color: var(--teal);
-  letter-spacing: 0.5px;
+.cmap-reset:hover { border-color: var(--green); color: var(--green); }
+.cmap-tip {
+  position: fixed; transform: translate(-50%, -150%); pointer-events: none; z-index: 60;
+  background: var(--bg-deep); border: 1px solid var(--teal-dim); padding: 3px 7px;
+  font-size: 15px; color: var(--ink); white-space: nowrap;
+}
+.cmap-tip b { color: var(--teal); }
+.cmap-foot {
+  padding: 7px 12px; border-top: 2px solid var(--line);
+  font-size: 14px; color: var(--muted); text-align: center;
 }
 @media (max-width: 720px) {
-  .country-banner { top: 52px; padding: 5px 10px 5px 5px; }
-  .cb-name { font-size: 9px; }
-  .cb-sub { font-size: 14px; }
+  .cmap { width: 94vw; height: 72vh; }
 }

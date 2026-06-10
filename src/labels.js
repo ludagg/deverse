@@ -76,6 +76,7 @@ function buildLabels() {
   }
 
   const labels = [];
+  const outlines = new Map(); // country name → raw lon/lat outer rings, largest first
   for (const f of features) {
     const name = f.properties && f.properties.name;
     if (!name || !f.geometry) continue;
@@ -103,10 +104,17 @@ function buildLabels() {
     const size = Math.max(b.maxX - b.minX, b.maxY - b.minY);
     const iso3 = f.id != null ? NUMERIC_TO_ISO3[String(f.id).padStart(3, "0")] || null : null;
     labels.push({ name, iso3, lon: wrapLon(cxLon), lat: cyLat, size });
+
+    // keep the raw outer rings (largest first) so the flat country map can draw
+    // the country shape; the renderer wraps longitudes around the anchor itself
+    const sorted = outers.slice().sort((p, q) => ringArea(normalizeRing(q)) - ringArea(normalizeRing(p)));
+    outlines.set(name, sorted);
   }
 
   labels.sort((a, b) => b.size - a.size);
-  return labels;
+  return { labels, outlines };
 }
 
-export const COUNTRY_LABELS = buildLabels();
+const built = buildLabels();
+export const COUNTRY_LABELS = built.labels;
+export const COUNTRY_OUTLINES = built.outlines; // name → [ [ [lon,lat], … ], … ]

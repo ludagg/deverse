@@ -1,17 +1,17 @@
 /* DEVERSE — on-demand admin-1 (states / provinces / regions) boundaries.
  *
  * The bundled world-atlas only carries country outlines, so the internal region
- * borders you see when you zoom deep into a country are fetched lazily, one
- * country at a time, from geoBoundaries (https://www.geoboundaries.org) — an
- * open dataset with global ADM1 coverage and permissive CORS. (Natural Earth's
- * low-resolution admin-1 only ships a handful of big federal countries, which
- * is why most countries used to draw no regions at all.)
+ * borders are fetched lazily, one country at a time, from geoBoundaries
+ * (https://www.geoboundaries.org) — an open dataset with global ADM1 coverage
+ * and permissive CORS. (Natural Earth's low-resolution admin-1 only ships a
+ * handful of big federal countries, which is why most countries used to draw no
+ * regions at all.)
  *
- * Flow per country: the geoBoundaries API returns metadata pointing at a
- * simplified GeoJSON, which we fetch and convert to sphere-ready line rings.
- * Everything is cached and degrades gracefully: countries with no ADM1 data
- * (Antarctica, tiny states…) or a blocked network simply show no subdivisions.
- * Nothing is fetched until you actually zoom into a country. */
+ * Per country we fetch the simplified GeoJSON once and cache it, then serve it
+ * in two shapes: sphere-ready line rings for the globe, and raw lon/lat rings
+ * for the flat country map. Everything degrades gracefully: countries with no
+ * ADM1 data (Antarctica, micro-states…) or a blocked network simply show no
+ * subdivisions. Nothing is fetched until you actually open a country. */
 
 const API = "https://www.geoboundaries.org/api/current/gbOpen/";
 
@@ -38,25 +38,13 @@ function densify(line, maxDeg) {
   return out;
 }
 
-function ringsFromGeometry(geometry, into) {
+/* Collect every boundary ring (as raw lon/lat point arrays) from a geometry. */
+function lonLatRings(geometry, into) {
   if (!geometry) return;
-  const pushLine = (line) => {
-    if (!line || line.length < 2) return;
-    const ln = densify(line, 1.5);
-    const v = new Float32Array(ln.length * 3);
-    for (let i = 0; i < ln.length; i++) {
-      const p = vec(ln[i][0], ln[i][1]);
-      v[i * 3] = p[0]; v[i * 3 + 1] = p[1]; v[i * 3 + 2] = p[2];
-    }
-    into.push(v);
-  };
-  const walk = (g) => {
-    if (!g) return;
-    if (g.type === "Polygon") for (const ring of g.coordinates) pushLine(ring);
-    else if (g.type === "MultiPolygon") for (const poly of g.coordinates) for (const ring of poly) pushLine(ring);
-    else if (g.type === "GeometryCollection") for (const sub of g.geometries) walk(sub);
-  };
-  walk(geometry);
+  const { type, coordinates } = geometry;
+  if (type === "Polygon") for (const ring of coordinates) into.push(ring);
+  else if (type === "MultiPolygon") for (const poly of coordinates) for (const ring of poly) into.push(ring);
+  else if (type === "GeometryCollection") for (const g of geometry.geometries) lonLatRings(g, into);
 }
 
 /* geoBoundaries points at github.com/<o>/<r>/raw/… , but those files are stored
@@ -71,33 +59,47 @@ function cdnify(url) {
   );
 }
 
-const cache = new Map(); // ISO3 → array of sphere rings (cached, incl. empty)
+// ISO3 → promise of raw lon/lat rings (memoised, so each country is fetched once)
+const cache = new Map();
 
-/* Region border rings for one country (by ISO alpha-3), as sphere unit-vector
- * Float32Arrays. Resolves to [] when there's no ADM1 data or the network is
- * blocked, so callers can cache the result and never re-request. */
-export async function regionRingsFor(iso3) {
-  if (!iso3) return [];
+/* Fetch a country's ADM1 rings as raw lon/lat point arrays. Resolves to [] when
+ * there's no data or the network is blocked. */
+export function regionPolygonsFor(iso3) {
+  if (!iso3) return Promise.resolve([]);
   if (cache.has(iso3)) return cache.get(iso3);
 
-  let rings = [];
-  try {
-    const metaRes = await fetch(API + iso3 + "/ADM1/");
-    if (metaRes.ok) {
+  const p = (async () => {
+    try {
+      const metaRes = await fetch(API + iso3 + "/ADM1/");
+      if (!metaRes.ok) return [];
       const meta = await metaRes.json();
       const url = meta && (meta.simplifiedGeometryGeoJSON || meta.gjDownloadURL);
-      if (url) {
-        const fcRes = await fetch(cdnify(url));
-        if (fcRes.ok) {
-          const fc = await fcRes.json();
-          for (const feat of fc.features || []) ringsFromGeometry(feat.geometry, rings);
-        }
-      }
+      if (!url) return [];
+      const fcRes = await fetch(cdnify(url));
+      if (!fcRes.ok) return [];
+      const fc = await fcRes.json();
+      const rings = [];
+      for (const feat of fc.features || []) lonLatRings(feat.geometry, rings);
+      return rings;
+    } catch {
+      return []; // network blocked / parse error → no regions, country still shown
     }
-  } catch {
-    rings = []; // network blocked / parse error → no regions, country still shown
-  }
+  })();
 
-  cache.set(iso3, rings);
-  return rings;
+  cache.set(iso3, p);
+  return p;
+}
+
+/* Same data as sphere unit-vector Float32Arrays, for the globe renderer. */
+export async function regionRingsFor(iso3) {
+  const rings = await regionPolygonsFor(iso3);
+  return rings.map((line) => {
+    const ln = densify(line, 1.5);
+    const v = new Float32Array(ln.length * 3);
+    for (let i = 0; i < ln.length; i++) {
+      const p = vec(ln[i][0], ln[i][1]);
+      v[i * 3] = p[0]; v[i * 3 + 1] = p[1]; v[i * 3 + 2] = p[2];
+    }
+    return v;
+  });
 }
